@@ -4,3 +4,14 @@ dist/
 *.d
 *.swp
 .DS_Store
+
+# Community skins — keep local, don't ship in the repo
+Skins/*
+# But track the three original built-in skins
+!Skins/KlokClassic.png
+!Skins/KlokClassic.ini
+!Skins/KlokDark.png
+!Skins/KlokDark.ini
+!Skins/KlokOutline.png
+!Skins/KlokOutline.ini
+!Skins/default.ini

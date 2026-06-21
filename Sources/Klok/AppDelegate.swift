@@ -20,6 +20,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: .openPreferences, object: nil
         )
         NotificationCenter.default.addObserver(
+            self, selector: #selector(openPreferencesGeneral),
+            name: .openPreferencesGeneral, object: nil
+        )
+        NotificationCenter.default.addObserver(
             self, selector: #selector(openReminders),
             name: .openReminders, object: nil
         )
@@ -70,11 +74,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let custom = Settings.shared.menuBarDateFormat
         fmt.dateFormat = custom.isEmpty ? autoFormat() : custom
         let timeStr = fmt.string(from: now)
-        btn.font  = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
 
         let position = Settings.shared.menuBarIconPosition
-        if position == 2 {          // hidden — no icon, plain text
-            btn.title = timeStr
+        if position == 2 {
+            btn.attributedTitle = makeTimeAttrString(timeStr, now: now)
             btn.image = nil
             btn.imagePosition = .noImage
             return
@@ -93,10 +96,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         btn.image = icon
-        // Thin space ( ) between icon and text for visual breathing room
         let gap = "\u{2002}"
-        btn.title = (position == 1) ? timeStr + gap : gap + timeStr
+        let fullStr = (position == 1) ? timeStr + gap : gap + timeStr
+        btn.attributedTitle = makeTimeAttrString(fullStr, now: now)
         btn.imagePosition = (position == 1) ? .imageRight : .imageLeft
+    }
+
+    private func makeTimeAttrString(_ fullStr: String, now: Date) -> NSAttributedString {
+        let base = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        let ampm = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize + 2, weight: .regular)
+        let attr = NSMutableAttributedString(string: fullStr, attributes: [.font: base])
+        let custom = Settings.shared.menuBarDateFormat
+        guard !Settings.shared.menuBar24Hour && custom.isEmpty else { return attr }
+        let ampmFmt = DateFormatter()
+        ampmFmt.dateFormat = "a"
+        let marker = ampmFmt.string(from: now)
+        if let range = fullStr.range(of: marker) {
+            attr.addAttribute(.font, value: ampm, range: NSRange(range, in: fullStr))
+        }
+        return attr
     }
 
     private func autoFormat() -> String {
@@ -112,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let circle = NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1))
             NSColor.controlAccentColor.setFill(); circle.fill()
             let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 10, weight: .bold),
+                .font: NSFont.systemFont(ofSize: 11, weight: .bold),
                 .foregroundColor: NSColor.white
             ]
             let s = "\(day)" as NSString
@@ -133,7 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let top = NSBezierPath(roundedRect: band, xRadius: 2, yRadius: 2)
             NSColor.controlAccentColor.setFill(); top.fill()
             let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 9, weight: .medium),
+                .font: NSFont.systemFont(ofSize: 10, weight: .medium),
                 .foregroundColor: NSColor.labelColor
             ]
             let s = "\(day)" as NSString
@@ -179,7 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             // Day number in body
             let bodyAttrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
+                .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
                 .foregroundColor: NSColor.labelColor
             ]
             let dayStr = "\(day)" as NSString
@@ -241,6 +259,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             preferencesController = PreferencesWindowController()
         }
         preferencesController?.showWindow(nil)
+        preferencesController?.selectTab(index: 1)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc func openPreferencesGeneral() {
+        if preferencesController == nil {
+            preferencesController = PreferencesWindowController()
+        }
+        preferencesController?.showWindow(nil)
+        preferencesController?.selectTab(index: 0)
         NSApp.activate(ignoringOtherApps: true)
     }
 

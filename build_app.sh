@@ -44,41 +44,20 @@ cat > "${OUT_DIR}/${BUNDLE}/Contents/Info.plist" <<PLIST
   <key>NSHighResolutionCapable</key>  <true/>
   <key>NSUserNotificationAlertStyle</key><string>alert</string>
   <key>NSCalendarsUsageDescription</key><string>Klok 需要访问日历来在日历视图中显示您的日程。</string>
+  <key>CFBundleIconFile</key>          <string>AppIcon</string>
 </dict>
 </plist>
 PLIST
 
-# App icon (use system clock symbol if available, skip if not)
-if command -v sips &>/dev/null && command -v iconutil &>/dev/null; then
+# App icon — use the metal clock skin as source
+ICON_SRC="app.png"
+if command -v sips &>/dev/null && command -v iconutil &>/dev/null && [ -f "${ICON_SRC}" ]; then
   ICONSET="${OUT_DIR}/Klok.iconset"
   mkdir -p "${ICONSET}"
-  python3 - <<'PY'
-import subprocess, os
-sizes = [16,32,64,128,256,512]
-src = "dist/Klok.iconset"
-for s in sizes:
-    for scale in [1, 2]:
-        px = s * scale
-        suffix = "" if scale == 1 else "@2x"
-        name = f"icon_{s}x{s}{suffix}.png"
-        # Create a simple placeholder PNG using built-in tools
-        subprocess.run([
-            "python3", "-c",
-            f"""
-import struct, zlib
-def png(w, h, color=(30,30,30,255)):
-    def row(c):
-        return b'\\x00' + bytes([c[0],c[1],c[2],c[3]]*(w))
-    raw = b''.join(row(color) for _ in range(h))
-    def chunk(t, d): c=zlib.crc32(t+d)&0xFFFFFFFF; return struct.pack('>I',len(d))+t+d+struct.pack('>I',c)
-    data = chunk(b'IHDR', struct.pack('>IIBBBBB',w,h,8,6,0,0,0))
-    data += chunk(b'IDAT', zlib.compress(raw))
-    data += chunk(b'IEND', b'')
-    return b'\\x89PNG\\r\\n\\x1a\\n' + data
-open('{src}/{name}','wb').write(png({px},{px},(30,30,30,255)))
-"""
-        ])
-PY
+  for SIZE in 16 32 64 128 256 512; do
+    sips -z ${SIZE} ${SIZE} "${ICON_SRC}" --out "${ICONSET}/icon_${SIZE}x${SIZE}.png" &>/dev/null
+    sips -z $((SIZE*2)) $((SIZE*2)) "${ICON_SRC}" --out "${ICONSET}/icon_${SIZE}x${SIZE}@2x.png" &>/dev/null
+  done
   iconutil -c icns "${ICONSET}" -o "${OUT_DIR}/${BUNDLE}/Contents/Resources/AppIcon.icns" 2>/dev/null || true
   rm -rf "${ICONSET}"
 fi

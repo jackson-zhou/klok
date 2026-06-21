@@ -5,6 +5,8 @@ import EventKit
 
 final class CalendarPanel: NSPanel {
     private let vc = CalendarViewController()
+    var isPinned = false
+    private var eventMonitor: Any?
 
     init() {
         let s = CGFloat(Settings.shared.calendarScale)
@@ -31,12 +33,20 @@ final class CalendarPanel: NSPanel {
         vfx.autoresizingMask = [.width, .height]
         contentView = vfx
 
-        vc.view.frame = vfx.bounds
-        vc.view.autoresizingMask = [.width, .height]
+        vc.view.frame = NSRect(x: 0, y: 0, width: K.W, height: CalendarViewController.baseH)
+        vc.view.autoresizingMask = []
         vfx.addSubview(vc.view)
+
+        // Observe settings changes so the panel resizes live, even when hidden.
+        NotificationCenter.default.addObserver(self, selector: #selector(panelSettingsChanged),
+                                               name: .settingsChanged, object: nil)
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    @objc private func panelSettingsChanged() {
+        applyScale()
+    }
 
     func applyScale() {
         let s = CGFloat(Settings.shared.calendarScale)
@@ -45,27 +55,53 @@ final class CalendarPanel: NSPanel {
         // Keep the top-left corner anchored while resizing
         let origin = NSPoint(x: frame.minX, y: frame.maxY - newH)
         setFrame(NSRect(x: origin.x, y: origin.y, width: newW, height: newH), display: true)
-        contentView?.frame = NSRect(origin: .zero, size: NSSize(width: newW, height: newH))
+        vc.applyScaleTransform()
     }
 
     func toggle(relativeTo button: NSStatusBarButton) {
         if isVisible {
-            orderOut(nil)
+            close()
         } else {
+            isPinned = false
             applyScale()
             positionNear(button)
             orderFrontRegardless()
+            startEventMonitor()
+            vc.updatePinButton()
         }
     }
 
     func toggleNearView(_ sourceView: NSView) {
         if isVisible {
-            orderOut(nil)
+            close()
         } else {
+            isPinned = false
             applyScale()
             positionNearView(sourceView)
             orderFrontRegardless()
+            startEventMonitor()
+            vc.updatePinButton()
         }
+    }
+
+    override func orderOut(_ sender: Any?) {
+        stopEventMonitor()
+        super.orderOut(sender)
+    }
+
+    private func startEventMonitor() {
+        stopEventMonitor()
+        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self, !self.isPinned else { return }
+            if !self.frame.contains(NSEvent.mouseLocation) {
+                self.close()
+            }
+        }
+    }
+
+    private func stopEventMonitor() {
+        if let m = eventMonitor { NSEvent.removeMonitor(m) }
+        eventMonitor = nil
     }
 
     private func positionNear(_ button: NSStatusBarButton) {
@@ -336,6 +372,7 @@ final class CalendarViewController: NSViewController {
     private let evContainer  = NSView()
     private let noEvLabel    = NSTextField(labelWithString: "")
     private var picker: YearMonthPicker?
+    private let pinBtn       = NSButton(title: "", target: nil, action: nil)
 
     private var isDark: Bool {
         view.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -363,35 +400,35 @@ final class CalendarViewController: NSViewController {
 
     private var viewH: CGFloat { view.bounds.height }
 
-    private func applyScaleTransform() {
+    func applyScaleTransform() {
         let s = CGFloat(Settings.shared.calendarScale)
         view.layer?.anchorPoint = CGPoint(x: 0, y: 0)
         view.layer?.position    = CGPoint(x: 0, y: 0)
         view.layer?.transform   = CATransform3DMakeScale(s, s, 1)
     }
 
-    override func viewDidAppear() {
-        super.viewDidAppear()
-        display = Date(); selected = nil
-        applyScaleTransform()
-        reloadMonth(); requestAccess()
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        // Register early (once) so we receive updates even before the panel is shown.
         NotificationCenter.default.addObserver(self, selector: #selector(settingsChanged),
                                                name: .settingsChanged, object: nil)
     }
 
-    override func viewDidDisappear() {
-        super.viewDidDisappear()
-        NotificationCenter.default.removeObserver(self, name: .settingsChanged, object: nil)
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        display = Date(); selected = nil
+        applyScaleTransform()
+        updatePinButton()
+        reloadMonth(); requestAccess()
     }
 
     @objc private func settingsChanged() {
         let s = CGFloat(Settings.shared.calendarScale)
-        // Push the new value into the stored property so NSPopover's KVO observer fires
         preferredContentSize = NSSize(width: Self.baseW * s, height: Self.baseH * s)
-        applyScaleTransform()
-        // Resize the hosting panel if it's visible
         if let panel = view.window as? CalendarPanel {
             panel.applyScale()
+        } else {
+            applyScaleTransform()
         }
         reloadMonth()
     }
@@ -513,15 +550,33 @@ final class CalendarViewController: NSViewController {
         view.addSubview(bar)
         buildSeparator(y: K.toolbarH)
 
-        // Close button — bottom-left of toolbar
         let symCfg = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
-        let closeBtn = NSButton(title: "", target: self, action: #selector(closePanel))
-        closeBtn.isBordered = false
-        closeBtn.image = NSImage(systemSymbolName: "xmark.circle",
+
+        // Pin button — bottom-right
+        pinBtn.target = self
+        pinBtn.action = #selector(togglePin)
+        pinBtn.isBordered = false
+        pinBtn.image = NSImage(systemSymbolName: "pin",
                                accessibilityDescription: nil)?.withSymbolConfiguration(symCfg)
-        closeBtn.contentTintColor = .secondaryLabelColor
-        closeBtn.frame = NSRect(x: 8, y: (K.toolbarH - 22) / 2, width: 26, height: 22)
-        bar.addSubview(closeBtn)
+        pinBtn.contentTintColor = .secondaryLabelColor
+        pinBtn.frame = NSRect(x: K.W - 34, y: (K.toolbarH - 22) / 2, width: 26, height: 22)
+        bar.addSubview(pinBtn)
+    }
+
+    @objc private func togglePin() {
+        guard let panel = view.window as? CalendarPanel else { return }
+        panel.isPinned.toggle()
+        updatePinButton()
+    }
+
+    func updatePinButton() {
+        let panel = view.window as? CalendarPanel
+        let pinned = panel?.isPinned ?? false
+        let symCfg = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+        let name = pinned ? "pin.fill" : "pin"
+        pinBtn.image = NSImage(systemSymbolName: name,
+                               accessibilityDescription: nil)?.withSymbolConfiguration(symCfg)
+        pinBtn.contentTintColor = pinned ? .controlAccentColor : .secondaryLabelColor
     }
 
     @objc private func closePanel() {

@@ -246,14 +246,14 @@ final class ClockView: NSView {
 
         if showAmPm {
             let cfg = skin.ampmConfig ?? TextOverlayConfig(
-                centerX: imgW / 2, centerY: imgH * 0.65,
-                color: .black, fontName: "", fontSize: imgH * 0.045)
+                centerX: imgW / 2, centerY: imgH * 0.727,   // ~73% from top, matches default.ini AMPMCenterY=88/121
+                color: .black, fontName: "", fontSize: imgH * 0.083)
             drawText(cfg, text: hour < 12 ? "AM" : "PM")
         }
         if showDate {
             let cfg = skin.dateConfig ?? TextOverlayConfig(
-                centerX: imgW / 2, centerY: imgH * 0.72,
-                color: .black, fontName: "", fontSize: imgH * 0.045)
+                centerX: imgW / 2, centerY: imgH * 0.372,   // ~37% from top, matches default.ini DateCenterY=45/121
+                color: .black, fontName: "", fontSize: imgH * 0.083)
             let df = DateFormatter()
             df.dateFormat = "yyyy/M/d"
             drawText(cfg, text: df.string(from: date))
@@ -261,34 +261,37 @@ final class ClockView: NSView {
     }
 
     // Fallback overlay for built-in code skins (no skin config, use fixed position).
+    // Positions match the default ClocX skin layout: date slightly above center, AM/PM below.
     private func drawCodeSkinOverlays(_ ctx: CGContext, hour: Int, date: Date) {
         guard showAmPm || showDate else { return }
         let size = min(bounds.width, bounds.height)
         let cx = bounds.midX
         let cy = bounds.midY
 
-        let fontSize = max(9, size * 0.10)
-        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
-        let color = NSColor.white.withAlphaComponent(0.85)
+        let color = NSColor(white: 0.47, alpha: 1.0)  // matches ClocX default gray (#787878)
 
-        var lines: [String] = []
-        if showAmPm { lines.append(hour < 12 ? "AM" : "PM") }
+        func drawCentered(text: String, fontSize: CGFloat, centerY: CGFloat) {
+            let font = NSFont.systemFont(ofSize: max(6, fontSize), weight: .regular)
+            let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
+            let str = NSAttributedString(string: text, attributes: attrs)
+            let sz = str.size()
+            str.draw(at: CGPoint(x: cx - sz.width / 2, y: centerY - sz.height / 2))
+        }
+
         if showDate {
             let df = DateFormatter()
             df.dateFormat = "yyyy/M/d"
-            lines.append(df.string(from: date))
+            // Date: 12.4% of size above clock center (mirrors default.ini DateCenterY=45 in 121px image)
+            drawCentered(text: df.string(from: date),
+                         fontSize: size * 0.083,
+                         centerY: cy + size * 0.124)
         }
 
-        let lineH = fontSize * 1.4
-        let totalH = CGFloat(lines.count) * lineH
-        var y = cy - size * 0.15 - totalH / 2
-
-        for text in lines {
-            let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
-            let str = NSAttributedString(string: text, attributes: attrs)
-            let tw = str.size().width
-            str.draw(at: CGPoint(x: cx - tw / 2, y: y))
-            y += lineH
+        if showAmPm {
+            // AM/PM: 23.1% of size below clock center (mirrors default.ini AMPMCenterY=88 in 121px image)
+            drawCentered(text: hour < 12 ? "AM" : "PM",
+                         fontSize: size * 0.070,
+                         centerY: cy - size * 0.231)
         }
     }
 
@@ -478,7 +481,7 @@ final class ClockView: NSView {
     }
 
     @objc private func openPreferences() {
-        NotificationCenter.default.post(name: .openPreferences, object: nil)
+        NotificationCenter.default.post(name: .openPreferencesGeneral, object: nil)
     }
 
     @objc private func openReminders() {
@@ -495,6 +498,7 @@ final class ClockView: NSView {
 }
 
 extension Notification.Name {
-    static let openPreferences = Notification.Name("com.klok.openPreferences")
-    static let openReminders   = Notification.Name("com.klok.openReminders")
+    static let openPreferences        = Notification.Name("com.klok.openPreferences")
+    static let openPreferencesGeneral = Notification.Name("com.klok.openPreferencesGeneral")
+    static let openReminders          = Notification.Name("com.klok.openReminders")
 }
