@@ -125,12 +125,21 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         langLabel.frame = NSRect(x: 20, y: 100, width: 100, height: 22)
         view.addSubview(langLabel)
 
-        let langSeg = NSSegmentedControl(labels: [L10n.langChinese, L10n.langEnglish],
-                                         trackingMode: .selectOne,
-                                         target: self,
-                                         action: #selector(languageChanged(_:)))
-        langSeg.selectedSegment = Settings.shared.language == "zh" ? 0 : 1
-        langSeg.frame = NSRect(x: 130, y: 100, width: 160, height: 22)
+        let langSeg = NSSegmentedControl(
+            labels: [L10n.langZH, L10n.langZHTW, L10n.langJA, L10n.langEN],
+            trackingMode: .selectOne,
+            target: self,
+            action: #selector(languageChanged(_:)))
+        let langIdx: Int
+        switch Settings.shared.language {
+        case "zh-TW": langIdx = 1
+        case "ja":    langIdx = 2
+        case "en":    langIdx = 3
+        default:      langIdx = 0
+        }
+        langSeg.selectedSegment = langIdx
+        langSeg.frame = NSRect(x: 130, y: 100, width: 220, height: 22)
+        langSeg.tag = 99
         view.addSubview(langSeg)
 
         
@@ -157,12 +166,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         y -= 16
 
         // 4 icon style buttons: circle / calendar-page / SF-symbol / weekday-badge
-        let styleSubs = [
-            L10n.isChinese ? "圆圈"   : "Circle",
-            L10n.isChinese ? "日历页" : "Page",
-            L10n.isChinese ? "图标"   : "Symbol",
-            L10n.isChinese ? "日期牌" : "Badge",
-        ]
+        let styleSubs = [L10n.styleCircle, L10n.stylePage, L10n.styleSymbol, L10n.styleBadge]
         styleButtons.removeAll()
         let btnSz: CGFloat = 52
         let gap:   CGFloat = 14
@@ -360,7 +364,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
                     .font: NSFont.systemFont(ofSize: 8, weight: .semibold),
                     .foregroundColor: NSColor.white
                 ]
-                let wd = (L10n.isChinese ? "周六" : "SAT") as NSString
+                let wd = L10n.badgeSatPreview as NSString
                 let wdSz = wd.size(withAttributes: wdAttrs)
                 wd.draw(at: NSPoint(x: inner.minX + (inner.width - wdSz.width) / 2,
                                     y: topBand.minY + (split - wdSz.height) / 2),
@@ -422,17 +426,17 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
     @objc private func showFmtHelp() {
         let tokens: [(String, String)] = [
-            ("y / yyyy",    L10n.isChinese ? "年 (26 / 2026)"       : "Year (26 / 2026)"),
-            ("M / MM / MMM / MMMM", L10n.isChinese ? "月 (数字/缩写/全称)" : "Month (6/06/Jun/June)"),
-            ("d / dd",      L10n.isChinese ? "日 (5 / 05)"          : "Day (5 / 05)"),
-            ("E / EEEE",    L10n.isChinese ? "星期 (缩写 / 全称)"    : "Weekday (Sat / Saturday)"),
-            ("H / HH",      L10n.isChinese ? "小时 24h (9 / 09)"    : "Hour 24h (9 / 09)"),
-            ("h / hh",      L10n.isChinese ? "小时 12h (9 / 09)"    : "Hour 12h (9 / 09)"),
-            ("m / mm",      L10n.isChinese ? "分钟 (5 / 05)"        : "Minute (5 / 05)"),
-            ("s / ss",      L10n.isChinese ? "秒 (3 / 03)"          : "Second (3 / 03)"),
-            ("a",           L10n.isChinese ? "上午/下午"             : "AM / PM"),
-            ("w",           L10n.isChinese ? "周数 (25)"            : "Week of year (25)"),
-            ("'text'",      L10n.isChinese ? "字面文字"              : "Literal text"),
+            ("y / yyyy",                L10n.fmtTokenYear),
+            ("M / MM / MMM / MMMM",     L10n.fmtTokenMonth),
+            ("d / dd",                  L10n.fmtTokenDay),
+            ("E / EEEE",                L10n.fmtTokenWeekday),
+            ("H / HH",                  L10n.fmtTokenHour24),
+            ("h / hh",                  L10n.fmtTokenHour12),
+            ("m / mm",                  L10n.fmtTokenMinute),
+            ("s / ss",                  L10n.fmtTokenSecond),
+            ("a",                       L10n.fmtTokenAmPm),
+            ("w",                       L10n.fmtTokenWeek),
+            ("'text'",                  L10n.fmtTokenLiteral),
         ]
         let body = tokens.map { "  \($0.0.padding(toLength: 20, withPad: " ", startingAt: 0))\($0.1)" }.joined(separator: "\n")
         let alert = NSAlert()
@@ -522,7 +526,10 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc private func languageChanged(_ sender: NSSegmentedControl) {
-        Settings.shared.language = sender.selectedSegment == 0 ? "zh" : "en"
+        let langs = ["zh", "zh-TW", "ja", "en"]
+        let idx = sender.selectedSegment
+        guard idx >= 0, idx < langs.count else { return }
+        Settings.shared.language = langs[idx]
     }
 
     // MARK: - Appearance Tab
