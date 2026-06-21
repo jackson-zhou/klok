@@ -1,0 +1,42 @@
+;all colors are in BGR format (hexadecimal or number)
+[Settings]
+CutColor=0x0000FF       ;cut window by this color (default red)
+			;not used with PNG in Win2k/XP
+
+DisableAMPM=0           ;force AM/PM indicator disabled (default 0)
+AMPMColor=0x787878	;color of AM/PM indicator
+AMPMFont=Times New Roman
+AMPMFontSize=10         ;size of AM/PM font
+
+DisableDate=0
+DateColor=0x787878
+DateFont=Arial
+DateFontSize=12
+
+HourColor=0x666666      ;color of hour hand
+HourLength=33           ;length of hour hand
+HourLap=0               ;overlap of hour hand
+HourWidth=3             ;width of hour hand
+
+MinuteColor=0x444444    ;color of minute hand
+MinuteLength=51         ;length of minute hand
+MinuteLap=0             ;overlap of minute hand
+MinuteWidth=2           ;width of minute hand
+
+SecondColor=0x000000    ;color of second hand
+SecondLength=50         ;length of second hand
+SecondLap=0             ;overlap of second hand
+SecondWidth=.4           ;width of second hand
+
+ CenterX=299             ;center point's X (default image_width / 2)
+ CenterY=340             ;center point's Y (default image_height / 2)
+
+;load hour hand image from PNG file
+;HourPNG=hand2.hpng
+;HourPNGCenterDist=24   ;distance from center of PNG image to point that should be in center of clock
+;load minute hand image from PNG file:
+;MinutePNG=hand2.hpng
+;MinutePNGCenterDist=24
+;load second hand image from PNG file:
+;SecondPNG=hand2.hpng
+;SecondPNGCenterDist=24
