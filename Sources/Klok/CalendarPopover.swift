@@ -117,12 +117,44 @@ final class CalendarPanel: NSPanel {
 
     private func positionNearView(_ sourceView: NSView) {
         guard let screen = sourceView.window?.screen ?? NSScreen.main,
-              let winFrame = sourceView.window?.convertToScreen(sourceView.convert(sourceView.bounds, to: nil)) else { return }
+              let clockFrame = sourceView.window?.convertToScreen(
+                  sourceView.convert(sourceView.bounds, to: nil)) else { return }
         let panelW = frame.width, panelH = frame.height
-        var x = winFrame.midX - panelW / 2
-        var y = winFrame.minY - panelH - 6
-        x = max(screen.visibleFrame.minX + 4, min(x, screen.visibleFrame.maxX - panelW - 4))
-        y = max(screen.visibleFrame.minY + 4, y)
+        let sf = screen.visibleFrame
+        let gap: CGFloat = 10
+
+        // Center calendar horizontally on the clock, clamped to screen
+        var x = clockFrame.midX - panelW / 2
+        x = max(sf.minX + 4, min(x, sf.maxX - panelW - 4))
+
+        // 1st choice: below the clock
+        let yBelow = clockFrame.minY - panelH - gap
+        if yBelow >= sf.minY + 4 {
+            setFrameOrigin(NSPoint(x: x, y: yBelow)); return
+        }
+
+        // 2nd choice: above the clock
+        let yAbove = clockFrame.maxY + gap
+        if yAbove + panelH <= sf.maxY - 4 {
+            setFrameOrigin(NSPoint(x: x, y: yAbove)); return
+        }
+
+        // 3rd choice: to the right of the clock
+        let xRight = clockFrame.maxX + gap
+        if xRight + panelW <= sf.maxX - 4 {
+            let y = max(sf.minY + 4, min(clockFrame.midY - panelH / 2, sf.maxY - panelH - 4))
+            setFrameOrigin(NSPoint(x: xRight, y: y)); return
+        }
+
+        // 4th choice: to the left of the clock
+        let xLeft = clockFrame.minX - panelW - gap
+        if xLeft >= sf.minX + 4 {
+            let y = max(sf.minY + 4, min(clockFrame.midY - panelH / 2, sf.maxY - panelH - 4))
+            setFrameOrigin(NSPoint(x: xLeft, y: y)); return
+        }
+
+        // Fallback: best-fit below, even if partially off-screen
+        let y = max(sf.minY + 4, yBelow)
         setFrameOrigin(NSPoint(x: x, y: y))
     }
 
