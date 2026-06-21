@@ -126,19 +126,18 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         view.addSubview(langLabel)
 
         let langSeg = NSSegmentedControl(
-            labels: [L10n.langZH, L10n.langZHTW, L10n.langJA, L10n.langEN],
+            labels: [L10n.langZH, L10n.langZHTW, L10n.langEN],
             trackingMode: .selectOne,
             target: self,
             action: #selector(languageChanged(_:)))
         let langIdx: Int
         switch Settings.shared.language {
         case "zh-TW": langIdx = 1
-        case "ja":    langIdx = 2
-        case "en":    langIdx = 3
+        case "en":    langIdx = 2
         default:      langIdx = 0
         }
         langSeg.selectedSegment = langIdx
-        langSeg.frame = NSRect(x: 130, y: 100, width: 220, height: 22)
+        langSeg.frame = NSRect(x: 130, y: 100, width: 180, height: 22)
         langSeg.tag = 99
         view.addSubview(langSeg)
 
@@ -526,7 +525,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc private func languageChanged(_ sender: NSSegmentedControl) {
-        let langs = ["zh", "zh-TW", "ja", "en"]
+        let langs = ["zh", "zh-TW", "en"]
         let idx = sender.selectedSegment
         guard idx >= 0, idx < langs.count else { return }
         Settings.shared.language = langs[idx]

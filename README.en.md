@@ -14,7 +14,7 @@ A macOS menu-bar clock inspired by the classic Windows freeware **ClocX**. Displ
 - Menu bar icon with live time, configurable date format and icon styles
 - Calendar popover with system calendar event integration
 - Alarm / reminder system with notifications
-- Multiple language support: 简体中文 / 繁體中文 / 日本語 / English
+- Multiple language support: 简体中文 / 繁體中文 / English
 - Light & dark mode
 - Requires macOS 13+
 
