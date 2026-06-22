@@ -10,7 +10,15 @@ macOS 菜单栏模拟时钟，仿照经典 Windows 工具 **ClocX** 设计。支
 |:-----------:|:--------:|:-----------:|
 | ![KlokClassic](Screenshots/KlokClassic.png) | ![KlokDark](Screenshots/KlokDark.png) | ![KlokOutline](Screenshots/KlokOutline.png) |
 
-> 支持加载任意 ClocX 社区皮肤，以上为内置原创皮肤。
+> 以上为内置原创皮肤。下载皮肤包后可加载数百款 ClocX 社区皮肤，部分示例：
+
+| Azul | BallClockAmber | Citizen |
+|:----:|:--------------:|:-------:|
+| ![Azul](Screenshots/Azul.png) | ![BallClockAmber](Screenshots/BallClockAmber.png) | ![Citizen](Screenshots/Citizen.png) |
+
+| WidestoneStudios | White Apple Clock |
+|:----------------:|:-----------------:|
+| ![WidestoneStudios](Screenshots/WidestoneStudios.png) | ![White_Apple_Clock](Screenshots/White_Apple_Clock.png) |
 
 ## 功能特性
 

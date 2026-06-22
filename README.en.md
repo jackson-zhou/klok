@@ -10,7 +10,15 @@ A macOS menu-bar clock inspired by the classic Windows freeware **ClocX**. Displ
 |:-----------:|:--------:|:-----------:|
 | ![KlokClassic](Screenshots/KlokClassic.png) | ![KlokDark](Screenshots/KlokDark.png) | ![KlokOutline](Screenshots/KlokOutline.png) |
 
-> Thousands of community ClocX skins are also supported. These are the three built-in originals.
+> These are the three built-in originals. Download the skin pack to load hundreds of community skins — a few examples:
+
+| Azul | BallClockAmber | Citizen |
+|:----:|:--------------:|:-------:|
+| ![Azul](Screenshots/Azul.png) | ![BallClockAmber](Screenshots/BallClockAmber.png) | ![Citizen](Screenshots/Citizen.png) |
+
+| WidestoneStudios | White Apple Clock |
+|:----------------:|:-----------------:|
+| ![WidestoneStudios](Screenshots/WidestoneStudios.png) | ![White_Apple_Clock](Screenshots/White_Apple_Clock.png) |
 
 ## Features
 
