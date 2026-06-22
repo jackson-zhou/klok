@@ -54,7 +54,11 @@ enum L10n {
 
     // MARK: - Appearance tab
 
-    static var searchSkins:   String { s("搜索皮肤…", "搜尋皮膚…", "Search skins…") }
+    static var searchSkins:     String { s("搜索皮肤…",       "搜尋皮膚…",       "Search skins…") }
+    static var skinDirLabel:    String { s("皮肤目录：",       "皮膚目錄：",       "Skin directory:") }
+    static var skinDirNone:     String { s("（使用内置皮肤）", "（使用內建皮膚）", "(using built-in skins)") }
+    static var skinDirBrowse:   String { s("浏览…",           "瀏覽…",           "Browse…") }
+    static var skinDirClear:    String { s("清除",             "清除",             "Clear") }
     static var styleCircle:   String { s("圆圈",      "圓圈",      "Circle") }
     static var stylePage:     String { s("日历页",    "日曆頁",    "Page") }
     static var styleSymbol:   String { s("图标",      "圖示",      "Symbol") }

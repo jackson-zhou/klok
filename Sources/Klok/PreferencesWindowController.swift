@@ -533,9 +533,18 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - Appearance Tab
 
-    private var skinURLs: [URL] = ClocXSkinLoader.availableSkins()
+    private var skinURLs: [URL] = {
+        if let dir = Settings.shared.customSkinDirectory {
+            let url = URL(fileURLWithPath: dir)
+            let skins = ClocXSkinLoader.availableSkins(in: url)
+            if !skins.isEmpty { return skins }
+        }
+        return ClocXSkinLoader.availableSkins()
+    }()
     private var filteredSkinURLs: [URL] = []
     private weak var skinTableView: NSTableView?
+    private weak var skinDirPathLabel: NSTextField?
+    private weak var skinDirClearButton: NSButton?
 
     private func makeAppearanceTab() -> NSTabViewItem {
         let item = NSTabViewItem(); item.label = L10n.tabAppearance
@@ -567,8 +576,36 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         chkJump.frame = NSRect(x: 198, y: 298, width: 186, height: 22)
         view.addSubview(chkJump)
 
+        // Skin directory picker row
+        let dirLabel = NSTextField(labelWithString: L10n.skinDirLabel)
+        dirLabel.frame = NSRect(x: 12, y: 271, width: 82, height: 17)
+        dirLabel.font = .systemFont(ofSize: 12)
+        view.addSubview(dirLabel)
+
+        let pathLabel = NSTextField(labelWithString: Settings.shared.customSkinDirectory ?? L10n.skinDirNone)
+        pathLabel.frame = NSRect(x: 96, y: 271, width: 170, height: 17)
+        pathLabel.font = .systemFont(ofSize: 11)
+        pathLabel.textColor = Settings.shared.customSkinDirectory == nil ? .secondaryLabelColor : .labelColor
+        pathLabel.lineBreakMode = .byTruncatingMiddle
+        view.addSubview(pathLabel)
+        skinDirPathLabel = pathLabel
+
+        let browseBtn = NSButton(title: L10n.skinDirBrowse, target: self, action: #selector(browseSkinDirectory))
+        browseBtn.frame = NSRect(x: 270, y: 267, width: 56, height: 22)
+        browseBtn.bezelStyle = .rounded
+        browseBtn.font = .systemFont(ofSize: 11)
+        view.addSubview(browseBtn)
+
+        let clearBtn = NSButton(title: L10n.skinDirClear, target: self, action: #selector(clearSkinDirectory))
+        clearBtn.frame = NSRect(x: 330, y: 267, width: 54, height: 22)
+        clearBtn.bezelStyle = .rounded
+        clearBtn.font = .systemFont(ofSize: 11)
+        clearBtn.isEnabled = Settings.shared.customSkinDirectory != nil
+        view.addSubview(clearBtn)
+        skinDirClearButton = clearBtn
+
         // Scroll view fills space below options
-        let scroll = NSScrollView(frame: NSRect(x: 12, y: 8, width: 372, height: 285))
+        let scroll = NSScrollView(frame: NSRect(x: 12, y: 8, width: 372, height: 252))
         scroll.hasVerticalScroller = true
         scroll.borderType = .bezelBorder
 
@@ -617,6 +654,48 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     private func refreshActiveLabel() {}
 
     @objc private func clearClocXSkin() {}
+
+    @objc private func browseSkinDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = L10n.skinDirBrowse
+        panel.beginSheetModal(for: window!) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            self?.applySkinDirectory(url)
+        }
+    }
+
+    @objc private func clearSkinDirectory() {
+        Settings.shared.customSkinDirectory = nil
+        // If the active skin came from the custom directory, clear it too
+        if let activePath = Settings.shared.clocxSkinPath {
+            let wasBundled = ClocXSkinLoader.availableSkins().map(\.path).contains(activePath)
+            if !wasBundled { Settings.shared.clocxSkinPath = nil }
+        }
+        reloadSkinList(directory: nil)
+    }
+
+    private func applySkinDirectory(_ url: URL) {
+        Settings.shared.customSkinDirectory = url.path
+        reloadSkinList(directory: url)
+    }
+
+    private func reloadSkinList(directory: URL?) {
+        if let dir = directory {
+            skinURLs = ClocXSkinLoader.availableSkins(in: dir)
+        } else {
+            skinURLs = ClocXSkinLoader.availableSkins()
+        }
+        filteredSkinURLs = skinURLs
+
+        let hasCustom = Settings.shared.customSkinDirectory != nil
+        skinDirPathLabel?.stringValue = Settings.shared.customSkinDirectory ?? L10n.skinDirNone
+        skinDirPathLabel?.textColor = hasCustom ? .labelColor : .secondaryLabelColor
+        skinDirClearButton?.isEnabled = hasCustom
+        skinTableView?.reloadData()
+    }
 
     // MARK: - Reminders Tab
 

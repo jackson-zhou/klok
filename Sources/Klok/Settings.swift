@@ -230,6 +230,12 @@ final class Settings {
         set { defaults.set(newValue, forKey: "clocxSkinPath"); notify() }
     }
 
+    // Directory containing ClocX-compatible skin files (nil = use bundled Skins/)
+    var customSkinDirectory: String? {
+        get { defaults.string(forKey: "customSkinDirectory") }
+        set { defaults.set(newValue, forKey: "customSkinDirectory"); notify() }
+    }
+
     func loadClocXSkin() -> ClocXSkin? {
         guard let path = clocxSkinPath else { return nil }
         return ClocXSkinLoader.load(from: URL(fileURLWithPath: path))

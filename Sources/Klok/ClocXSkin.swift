@@ -112,10 +112,11 @@ final class ClocXSkinLoader {
     // because PNGs use real alpha channels while BMPs rely on the red cut-color trick.
     // Hand sprite images (domehour, roman2minute, woodmin, etc.) are excluded
     // by checking aspect ratio — real clock faces are roughly square (ratio ≥ 0.4).
-    static func availableSkins() -> [URL] {
+    static func availableSkins(in directory: URL? = nil) -> [URL] {
+        let dir = directory ?? skinsDir
         let fm = FileManager.default
         guard let contents = try? fm.contentsOfDirectory(
-            at: skinsDir,
+            at: dir,
             includingPropertiesForKeys: nil
         ) else { return [] }
 

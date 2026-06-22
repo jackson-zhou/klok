@@ -19,11 +19,8 @@ mkdir -p "${OUT_DIR}/${BUNDLE}/Contents/Resources"
 
 cp "${BINARY}" "${OUT_DIR}/${BUNDLE}/Contents/MacOS/${APP_NAME}"
 
-# Bundle the ClocX skins
-if [ -d "Skins" ]; then
-    echo "▸ Bundling $(ls Skins | wc -l | tr -d ' ') skin files…"
-    cp -r "Skins" "${OUT_DIR}/${BUNDLE}/Contents/Resources/Skins"
-fi
+# Skins are distributed separately via ClockX-Skins.zip (run Tools/pack-skins.sh).
+# Users load them from Preferences → Appearance → Skin directory.
 
 cat > "${OUT_DIR}/${BUNDLE}/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
