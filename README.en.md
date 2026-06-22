@@ -16,9 +16,13 @@ A macOS menu-bar clock inspired by the classic Windows freeware **ClocX**. Displ
 |:----:|:--------------:|:-------:|
 | ![Azul](Screenshots/Azul.png) | ![BallClockAmber](Screenshots/BallClockAmber.png) | ![Citizen](Screenshots/Citizen.png) |
 
-| WidestoneStudios | White Apple Clock |
-|:----------------:|:-----------------:|
-| ![WidestoneStudios](Screenshots/WidestoneStudios.png) | ![White_Apple_Clock](Screenshots/White_Apple_Clock.png) |
+| WidestoneStudios | White Apple Clock | Rojo |
+|:----------------:|:-----------------:|:----:|
+| ![WidestoneStudios](Screenshots/WidestoneStudios.png) | ![White_Apple_Clock](Screenshots/White_Apple_Clock.png) | ![Rojo](Screenshots/Rojo.png) |
+
+| Verde | JaguarClock |
+|:-----:|:-----------:|
+| ![Verde](Screenshots/Verde.png) | ![JaguarClock](Screenshots/JaguarClock.png) |
 
 ## Features
 

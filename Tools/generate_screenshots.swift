@@ -67,7 +67,7 @@ let PREVIEW_DATE = "Jun 22"
 
 func renderSkin(skinName: String, skinsDir: URL, outputDir: URL,
                 bgR: CGFloat, bgG: CGFloat, bgB: CGFloat,
-                showAmPm: Bool = true, showDate: Bool = true) {
+                showAmPm: Bool = false, showDate: Bool = false) {
     // Try PNG first, then BMP
     var imageURL = skinsDir.appendingPathComponent("\(skinName).png")
     if !FileManager.default.fileExists(atPath: imageURL.path) {
@@ -234,5 +234,11 @@ renderSkin(skinName: "WidestoneStudios", skinsDir: skinsDir, outputDir: outDir,
            bgR: 0.12, bgG: 0.12, bgB: 0.12)
 renderSkin(skinName: "White_Apple_Clock", skinsDir: skinsDir, outputDir: outDir,
            bgR: 0.20, bgG: 0.20, bgB: 0.22)
+renderSkin(skinName: "Rojo",             skinsDir: skinsDir, outputDir: outDir,
+           bgR: 0.12, bgG: 0.10, bgB: 0.10)
+renderSkin(skinName: "Verde",            skinsDir: skinsDir, outputDir: outDir,
+           bgR: 0.10, bgG: 0.13, bgB: 0.10)
+renderSkin(skinName: "JaguarClock",      skinsDir: skinsDir, outputDir: outDir,
+           bgR: 0.14, bgG: 0.14, bgB: 0.14)
 
 print("Done.")
