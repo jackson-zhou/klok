@@ -28,23 +28,23 @@ macOS 菜单栏模拟时钟，仿照经典 Windows 工具 **ClocX** 设计。支
 
 Klok 完整兼容 ClocX 的皮肤格式（`.ini` 配置 + 表盘图片），可以直接使用多年来 ClocX 社区积累的海量皮肤资源。
 
-### 安装皮肤
-
-将皮肤文件夹（包含 `.png`/`.bmp` 和 `.ini` 文件）放入以下目录，重启 Klok 后在「设置 → 外观」中选择皮肤：
-
-```
-~/Library/Application Support/Klok/Skins/
-```
-
-也可以在偏好设置的外观标签页中直接浏览并选择皮肤。
-
 ### 获取 ClocX 皮肤
 
-ClocX 的社区皮肤资源可以从以下渠道获取：
+**打包皮肤包下载（推荐）**：包含数百款精选 ClocX 社区皮肤，解压后即可在设置中加载：
+
+👉 **[下载 ClockX-Skins.zip](https://wwbjv.lanzout.com/i9rBb3skqt7e)**
+
+其他渠道：
 
 - **ClocX 官网皮肤库**：[clockx.narod.ru](http://clockx.narod.ru/) — 包含数百款官方收录皮肤
 - **DeviantArt**：搜索 [`ClocX skin`](https://www.deviantart.com/search?q=clockx+skin) — 大量社区设计师的原创皮肤
 - **各类 Windows 工具分享论坛**：搜索「ClocX 皮肤」或「ClocX skins pack」
+
+### 安装皮肤
+
+1. 下载并解压 `ClockX-Skins.zip` 到任意目录（例如 `~/Documents/ClockX-Skins/`）
+2. 打开 **设置 → 外观**，点击「浏览…」选择解压后的文件夹
+3. 皮肤列表会立即刷新，点击即可切换
 
 > 注意：第三方皮肤版权归各自创作者所有，使用时请尊重原作者的许可条款。
 

