@@ -80,7 +80,7 @@ Sources/Klok/
   PreferencesWindowController.swift  — skin picker, general, alarms tabs
   AlarmManager.swift                 — scheduling, UserNotifications
   Settings.swift                     — UserDefaults-backed settings store
-  L10n.swift                         — localization strings (zh / zh-TW / ja / en)
+  L10n.swift                         — localization strings (zh / zh-TW / en)
 Skins/                               — bundled original skins (see licensing note)
 Tools/
   generate_default_skins.swift       — script that generates the bundled skin PNGs

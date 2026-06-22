@@ -80,7 +80,7 @@ Sources/Klok/
   PreferencesWindowController.swift — 皮肤选择、通用设置、闹钟标签页
   AlarmManager.swift             — 闹钟调度、UserNotifications
   Settings.swift                 — 基于 UserDefaults 的设置存储
-  L10n.swift                     — 多语言字符串（简中/繁中/日语/英语）
+  L10n.swift                     — 多语言字符串（简中/繁中/英语）
 Skins/                           — 内置原创皮肤（详见下方授权说明）
 Tools/
   generate_default_skins.swift   — 内置皮肤生成脚本
