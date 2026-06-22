@@ -4,7 +4,13 @@ macOS 菜单栏模拟时钟，仿照经典 Windows 工具 **ClocX** 设计。支
 
 **[English README](README.en.md)**
 
-![Klok 截图](app.png)
+## 预览
+
+| KlokClassic | KlokDark | KlokOutline |
+|:-----------:|:--------:|:-----------:|
+| ![KlokClassic](Screenshots/KlokClassic.png) | ![KlokDark](Screenshots/KlokDark.png) | ![KlokOutline](Screenshots/KlokOutline.png) |
+
+> 支持加载任意 ClocX 社区皮肤，以上为内置原创皮肤。
 
 ## 功能特性
 

@@ -4,7 +4,13 @@ A macOS menu-bar clock inspired by the classic Windows freeware **ClocX**. Displ
 
 **[中文 README](README.md)**
 
-![Klok screenshot](app.png)
+## Preview
+
+| KlokClassic | KlokDark | KlokOutline |
+|:-----------:|:--------:|:-----------:|
+| ![KlokClassic](Screenshots/KlokClassic.png) | ![KlokDark](Screenshots/KlokDark.png) | ![KlokOutline](Screenshots/KlokOutline.png) |
+
+> Thousands of community ClocX skins are also supported. These are the three built-in originals.
 
 ## Features
 
