@@ -6,6 +6,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     private var reminderTableView: NSTableView!
     private var reminders: [Reminder] = []
     private var editorController: ReminderEditorWindowController?
+    private var suppressAutoClose = false
 
     init() {
         let win = NSWindow(
@@ -110,11 +111,6 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         hoverValue.frame = NSRect(x: 350, y: 205, width: 48, height: 22)
         hoverValue.tag = 13
         view.addSubview(hoverValue)
-
-        let secondHand = checkbox(L10n.showSecondHand, state: Settings.shared.showSecondHand,
-                                  action: #selector(toggleSecondHand(_:)))
-        secondHand.frame = NSRect(x: 20, y: 165, width: 200, height: 22)
-        view.addSubview(secondHand)
 
         let launchLogin = checkbox(L10n.launchAtLogin, state: LaunchAtLogin.isEnabled,
                                    action: #selector(toggleLaunchAtLogin(_:)))
@@ -442,7 +438,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         alert.messageText = L10n.menuBarFmtHelp
         alert.informativeText = body
         alert.addButton(withTitle: "OK")
-        alert.runModal()
+        alert.beginSheetModal(for: window!) { _ in }
     }
 
     @objc private func fmtFieldChanged(_ sender: NSTextField) {
@@ -773,7 +769,11 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     @objc private func testReminder() {
         let row = reminderTableView.selectedRow
         guard row >= 0, row < reminders.count else { return }
+        suppressAutoClose = true
         AlarmManager.shared.fire(reminders[row])
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.suppressAutoClose = false
+        }
     }
 
     private func openEditor(editing reminder: Reminder?) {
@@ -833,6 +833,11 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     func selectTab(index: Int) {
         guard index < tabView.tabViewItems.count else { return }
         tabView.selectTabViewItem(at: index)
+    }
+
+    func windowDidResignKey(_ notification: Notification) {
+        guard !suppressAutoClose, window?.attachedSheet == nil else { return }
+        close()
     }
 }
 

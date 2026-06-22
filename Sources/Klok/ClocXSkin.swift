@@ -29,6 +29,9 @@ struct TextOverlayConfig {
 struct ClocXSkin {
     let name: String
     let faceImage: NSImage
+    // Pixel dimensions of the face image (not points — used for hand/center scaling)
+    let facePixelWidth: Double
+    let facePixelHeight: Double
     // Center in original image pixels (default = image center)
     let centerX: Double
     let centerY: Double
@@ -167,8 +170,12 @@ final class ClocXSkinLoader {
             ?? (try? parseINI(at: iniURLLower))
             ?? [:]
 
-        let imgW = image.size.width
-        let imgH = image.size.height
+        // Use pixel dimensions so that INI values (hand lengths, CenterX/Y) stay in the
+        // correct coordinate system regardless of the PNG's embedded DPI metadata.
+        // NSImage.size returns points, which shrink by DPI/72 for high-DPI-tagged PNGs.
+        let cgTemp = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        let imgW = cgTemp.map { Double($0.width)  } ?? image.size.width
+        let imgH = cgTemp.map { Double($0.height) } ?? image.size.height
 
         let cx = ini["CenterX"].flatMap(Double.init) ?? (imgW / 2)
         let cy = ini["CenterY"].flatMap(Double.init) ?? (imgH / 2)
@@ -272,6 +279,7 @@ final class ClocXSkinLoader {
         return ClocXSkin(
             name: name,
             faceImage: image,
+            facePixelWidth: imgW, facePixelHeight: imgH,
             centerX: cx, centerY: cy,
             cutColor: cutColor,
             hour: hour, minute: minute, second: second,

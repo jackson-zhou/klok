@@ -126,8 +126,8 @@ final class ClockView: NSView {
     private func drawClocXSkin(_ ctx: CGContext, skin: ClocXSkin,
                                 hourAngle: CGFloat, minAngle: CGFloat, secAngle: CGFloat) {
         let viewSize = min(bounds.width, bounds.height)
-        let imgW = skin.faceImage.size.width
-        let imgH = skin.faceImage.size.height
+        let imgW = skin.facePixelWidth
+        let imgH = skin.facePixelHeight
         guard imgW > 0, imgH > 0 else { return }
 
         // Scale factor: fit the longer dimension into viewSize
@@ -199,8 +199,8 @@ final class ClockView: NSView {
     // Skin-aware overlay for ClocX skins: uses INI-defined positions, colors, fonts.
     // Global showAmPm / showDate toggles act as user-level overrides on top of the skin config.
     private func drawClocXOverlays(_ ctx: CGContext, skin: ClocXSkin, hour: Int, date: Date) {
-        let imgW = skin.faceImage.size.width
-        let imgH = skin.faceImage.size.height
+        let imgW = skin.facePixelWidth
+        let imgH = skin.facePixelHeight
         guard imgW > 0, imgH > 0 else { return }
 
         let viewSize = min(bounds.width, bounds.height)
