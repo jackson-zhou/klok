@@ -32,7 +32,9 @@ Klok reads the same `.ini` + image format used by the original Windows ClocX. Yo
 
 **Pre-packaged skin pack (recommended)** — hundreds of curated community skins, ready to load:
 
-👉 **[Download ClockX-Skins.zip](https://wwbjv.lanzout.com/i9rBb3skqt7e)**
+- 👉 **[Lanzou Cloud](https://wwbjv.lanzout.com/i9rBb3skqt7e)**
+- 👉 **[MEGA](https://mega.nz/file/nX5mkJrD#qZPrWY5O4_bG9VFpMVmzfolc1Lf38MjF2bWIOoWedco)**
+- 👉 **[pCloud](https://u.pcloud.link/publink/show?code=XZ3L8N5ZsjtfUt1GnI8DjJGuapj8by77CFiV)**
 
 Other sources:
 
