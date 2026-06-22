@@ -12,17 +12,13 @@ macOS 菜单栏模拟时钟，仿照经典 Windows 工具 **ClocX** 设计。支
 
 > 以上为内置原创皮肤。下载皮肤包后可加载数百款 ClocX 社区皮肤，部分示例：
 
-| Azul | BallClockAmber | Citizen |
-|:----:|:--------------:|:-------:|
-| ![Azul](Screenshots/Azul.png) | ![BallClockAmber](Screenshots/BallClockAmber.png) | ![Citizen](Screenshots/Citizen.png) |
+| Azul | BallClockAmber | Rojo | Verde | Naranja |
+|:----:|:--------------:|:----:|:-----:|:-------:|
+| ![Azul](Screenshots/Azul.png) | ![BallClockAmber](Screenshots/BallClockAmber.png) | ![Rojo](Screenshots/Rojo.png) | ![Verde](Screenshots/Verde.png) | ![Naranja](Screenshots/Naranja.png) |
 
-| WidestoneStudios | White Apple Clock | Rojo |
-|:----------------:|:-----------------:|:----:|
-| ![WidestoneStudios](Screenshots/WidestoneStudios.png) | ![White_Apple_Clock](Screenshots/White_Apple_Clock.png) | ![Rojo](Screenshots/Rojo.png) |
-
-| Verde | JaguarClock |
-|:-----:|:-----------:|
-| ![Verde](Screenshots/Verde.png) | ![JaguarClock](Screenshots/JaguarClock.png) |
+| Citizen | WidestoneStudios | White Apple Clock | JaguarClock |
+|:-------:|:----------------:|:-----------------:|:-----------:|
+| ![Citizen](Screenshots/Citizen.png) | ![WidestoneStudios](Screenshots/WidestoneStudios.png) | ![White_Apple_Clock](Screenshots/White_Apple_Clock.png) | ![JaguarClock](Screenshots/JaguarClock.png) |
 
 ## 功能特性
 

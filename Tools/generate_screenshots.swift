@@ -234,6 +234,8 @@ renderSkin(skinName: "WidestoneStudios", skinsDir: skinsDir, outputDir: outDir,
            bgR: 0.12, bgG: 0.12, bgB: 0.12)
 renderSkin(skinName: "White_Apple_Clock", skinsDir: skinsDir, outputDir: outDir,
            bgR: 0.20, bgG: 0.20, bgB: 0.22)
+renderSkin(skinName: "Naranja",          skinsDir: skinsDir, outputDir: outDir,
+           bgR: 0.14, bgG: 0.11, bgB: 0.08)
 renderSkin(skinName: "Rojo",             skinsDir: skinsDir, outputDir: outDir,
            bgR: 0.12, bgG: 0.10, bgB: 0.10)
 renderSkin(skinName: "Verde",            skinsDir: skinsDir, outputDir: outDir,
