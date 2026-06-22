@@ -16,9 +16,9 @@ macOS 菜单栏模拟时钟，仿照经典 Windows 工具 **ClocX** 设计。支
 |:----:|:--------------:|:----:|:-----:|:-------:|
 | ![Azul](Screenshots/Azul.png) | ![BallClockAmber](Screenshots/BallClockAmber.png) | ![Rojo](Screenshots/Rojo.png) | ![Verde](Screenshots/Verde.png) | ![Naranja](Screenshots/Naranja.png) |
 
-| Citizen | WidestoneStudios | White Apple Clock | JaguarClock |
-|:-------:|:----------------:|:-----------------:|:-----------:|
-| ![Citizen](Screenshots/Citizen.png) | ![WidestoneStudios](Screenshots/WidestoneStudios.png) | ![White_Apple_Clock](Screenshots/White_Apple_Clock.png) | ![JaguarClock](Screenshots/JaguarClock.png) |
+| Citizen | WidestoneStudios | White Apple Clock | JaguarClock | PocketWatch Omega |
+|:-------:|:----------------:|:-----------------:|:-----------:|:-----------------:|
+| ![Citizen](Screenshots/Citizen.png) | ![WidestoneStudios](Screenshots/WidestoneStudios.png) | ![White_Apple_Clock](Screenshots/White_Apple_Clock.png) | ![JaguarClock](Screenshots/JaguarClock.png) | ![PocketWatch Omega](<Screenshots/PocketWatch Omega.png>) |
 
 ## 功能特性
 

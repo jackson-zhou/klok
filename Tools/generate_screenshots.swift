@@ -223,24 +223,17 @@ renderSkin(skinName: "KlokDark",    skinsDir: skinsDir, outputDir: outDir,
 renderSkin(skinName: "KlokOutline", skinsDir: skinsDir, outputDir: outDir,
            bgR: 0.85, bgG: 0.88, bgB: 0.92)
 
-// Community ClocX skins
-renderSkin(skinName: "Azul",             skinsDir: skinsDir, outputDir: outDir,
-           bgR: 0.10, bgG: 0.12, bgB: 0.18)
-renderSkin(skinName: "BallClockAmber",   skinsDir: skinsDir, outputDir: outDir,
-           bgR: 0.14, bgG: 0.12, bgB: 0.10)
-renderSkin(skinName: "Citizen",          skinsDir: skinsDir, outputDir: outDir,
-           bgR: 0.88, bgG: 0.88, bgB: 0.90)
-renderSkin(skinName: "WidestoneStudios", skinsDir: skinsDir, outputDir: outDir,
-           bgR: 0.12, bgG: 0.12, bgB: 0.12)
-renderSkin(skinName: "White_Apple_Clock", skinsDir: skinsDir, outputDir: outDir,
-           bgR: 0.20, bgG: 0.20, bgB: 0.22)
-renderSkin(skinName: "Naranja",          skinsDir: skinsDir, outputDir: outDir,
-           bgR: 0.14, bgG: 0.11, bgB: 0.08)
-renderSkin(skinName: "Rojo",             skinsDir: skinsDir, outputDir: outDir,
-           bgR: 0.12, bgG: 0.10, bgB: 0.10)
-renderSkin(skinName: "Verde",            skinsDir: skinsDir, outputDir: outDir,
-           bgR: 0.10, bgG: 0.13, bgB: 0.10)
-renderSkin(skinName: "JaguarClock",      skinsDir: skinsDir, outputDir: outDir,
-           bgR: 0.14, bgG: 0.14, bgB: 0.14)
+// Community ClocX skins — white background
+let w: CGFloat = 0.96
+renderSkin(skinName: "Azul",              skinsDir: skinsDir, outputDir: outDir, bgR: w, bgG: w, bgB: w)
+renderSkin(skinName: "BallClockAmber",    skinsDir: skinsDir, outputDir: outDir, bgR: w, bgG: w, bgB: w)
+renderSkin(skinName: "Citizen",           skinsDir: skinsDir, outputDir: outDir, bgR: w, bgG: w, bgB: w)
+renderSkin(skinName: "WidestoneStudios",  skinsDir: skinsDir, outputDir: outDir, bgR: w, bgG: w, bgB: w)
+renderSkin(skinName: "White_Apple_Clock", skinsDir: skinsDir, outputDir: outDir, bgR: w, bgG: w, bgB: w)
+renderSkin(skinName: "Naranja",           skinsDir: skinsDir, outputDir: outDir, bgR: w, bgG: w, bgB: w)
+renderSkin(skinName: "Rojo",              skinsDir: skinsDir, outputDir: outDir, bgR: w, bgG: w, bgB: w)
+renderSkin(skinName: "Verde",             skinsDir: skinsDir, outputDir: outDir, bgR: w, bgG: w, bgB: w)
+renderSkin(skinName: "JaguarClock",       skinsDir: skinsDir, outputDir: outDir, bgR: w, bgG: w, bgB: w)
+renderSkin(skinName: "PocketWatch Omega", skinsDir: skinsDir, outputDir: outDir, bgR: w, bgG: w, bgB: w)
 
 print("Done.")
