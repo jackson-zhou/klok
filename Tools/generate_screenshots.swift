@@ -118,9 +118,9 @@ func renderSkin(skinName: String, skinsDir: URL, outputDir: URL,
     ctx.setFillColor(red: bgR, green: bgG, blue: bgB, alpha: 1)
     ctx.fill(CGRect(x: 0, y: 0, width: sz, height: sz))
 
-    // Scale + position face
+    // Scale to fill the square canvas (crop long dimension if non-square)
     let available = CGFloat(sz) - PAD * 2
-    let scale = available / max(imgW, imgH)
+    let scale = available / min(imgW, imgH)
     let drawW = imgW * scale, drawH = imgH * scale
     let ox = CGFloat(sz) / 2 - drawW / 2
     let oy = CGFloat(sz) / 2 - drawH / 2
