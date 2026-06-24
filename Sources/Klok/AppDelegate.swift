@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         clockWindowController = ClockWindowController(calendarPanel: calendarPanel)
         clockWindowController.showClock()
         AlarmManager.shared.start()
+        PluginManager.shared.activateEnabledPlugins()
         setupStatusBarItem()
 
         NotificationCenter.default.addObserver(
@@ -34,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        PluginManager.shared.deactivatePlugins()
         AlarmManager.shared.stop()
         clockTimer?.invalidate()
     }
@@ -247,6 +249,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let remindersItem = NSMenuItem(title: L10n.menuReminders, action: #selector(openReminders), keyEquivalent: "")
         remindersItem.target = self
         menu.addItem(remindersItem)
+        PluginMenuBuilder.appendPluginItems(
+            from: PluginManager.shared.menuRegistry,
+            location: .statusMenu,
+            to: menu
+        )
         menu.addItem(.separator())
         let quitItem = NSMenuItem(title: L10n.menuQuit, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quitItem.target = NSApp

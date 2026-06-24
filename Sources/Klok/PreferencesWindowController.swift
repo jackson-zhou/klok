@@ -7,6 +7,9 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     private var reminders: [Reminder] = []
     private var editorController: ReminderEditorWindowController?
     private var suppressAutoClose = false
+    private var pluginIDs: [String] = []
+    private var initialPluginEnabledStates: [String: Bool] = [:]
+    private var pluginRestartPromptShown = false
 
     init() {
         let win = NSWindow(
@@ -35,6 +38,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         tabView.addTabViewItem(makeCalendarTab())
         tabView.addTabViewItem(makeAppearanceTab())
         tabView.addTabViewItem(makeRemindersTab())
+        tabView.addTabViewItem(makePluginsTab())
     }
 
     // MARK: - General Tab
@@ -816,6 +820,68 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         return cell
     }
 
+    // MARK: - Plugins Tab
+
+    private func makePluginsTab() -> NSTabViewItem {
+        let item = NSTabViewItem(); item.label = L10n.tabPlugins
+        let view = NSView()
+        PluginManager.shared.registerBuiltinPlugins()
+        let plugins = PluginManager.shared.plugins
+        pluginIDs = plugins.map(\.id)
+        initialPluginEnabledStates = pluginEnabledStates(for: pluginIDs)
+
+        let box = NSBox(frame: NSRect(x: 12, y: 82, width: 384, height: 330))
+        box.title = L10n.pluginListTitle
+        box.boxType = .primary
+        view.addSubview(box)
+
+        var y: CGFloat = 272
+        for (idx, plugin) in plugins.enumerated() {
+            let enabled = PluginManager.shared.settings.isEnabled(pluginID: plugin.id)
+            let check = NSButton(checkboxWithTitle: plugin.name, target: self, action: #selector(pluginEnabledChanged(_:)))
+            check.state = enabled ? .on : .off
+            check.tag = idx
+            check.frame = NSRect(x: 24, y: y, width: 180, height: 22)
+            box.contentView?.addSubview(check)
+
+            let version = NSTextField(labelWithString: "v\(plugin.version)")
+            version.textColor = .secondaryLabelColor
+            version.font = .systemFont(ofSize: 11)
+            version.frame = NSRect(x: 204, y: y + 1, width: 52, height: 17)
+            box.contentView?.addSubview(version)
+
+            let configure = NSButton(title: L10n.pluginConfigure, target: self, action: #selector(configurePlugin(_:)))
+            configure.tag = idx
+            configure.isEnabled = plugin.isConfigurable
+            configure.frame = NSRect(x: 270, y: y - 2, width: 92, height: 26)
+            configure.bezelStyle = .rounded
+            box.contentView?.addSubview(configure)
+
+            y -= 34
+        }
+
+        let hint = NSTextField(wrappingLabelWithString: L10n.pluginRestartHint)
+        hint.frame = NSRect(x: 24, y: 28, width: 360, height: 38)
+        hint.textColor = .secondaryLabelColor
+        hint.font = .systemFont(ofSize: 12)
+        view.addSubview(hint)
+
+        item.view = view
+        return item
+    }
+
+    @objc private func pluginEnabledChanged(_ sender: NSButton) {
+        guard sender.tag >= 0, sender.tag < pluginIDs.count else { return }
+        PluginManager.shared.settings.setEnabled(sender.state == .on, pluginID: pluginIDs[sender.tag])
+    }
+
+    @objc private func configurePlugin(_ sender: NSButton) {
+        guard sender.tag >= 0, sender.tag < pluginIDs.count,
+              let plugin = PluginManager.shared.plugin(withID: pluginIDs[sender.tag])
+        else { return }
+        plugin.showConfiguration(parentWindow: window)
+    }
+
     // MARK: - Helpers
 
     private func label(_ s: String) -> NSTextField {
@@ -837,7 +903,96 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
     func windowDidResignKey(_ notification: Notification) {
         guard !suppressAutoClose, window?.attachedSheet == nil else { return }
+        if hasPluginEnablementChanges(), !pluginRestartPromptShown {
+            promptForPluginRestart()
+            return
+        }
         close()
+    }
+
+    private func pluginEnabledStates(for pluginIDs: [String]) -> [String: Bool] {
+        Dictionary(uniqueKeysWithValues: pluginIDs.map { pluginID in
+            (pluginID, PluginManager.shared.settings.isEnabled(pluginID: pluginID))
+        })
+    }
+
+    private func hasPluginEnablementChanges() -> Bool {
+        pluginEnabledStates(for: pluginIDs) != initialPluginEnabledStates
+    }
+
+    private func promptForPluginRestart() {
+        pluginRestartPromptShown = true
+        suppressAutoClose = true
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.messageText = L10n.pluginRestartTitle
+        alert.informativeText = L10n.pluginRestartMessage
+        alert.addButton(withTitle: L10n.pluginRestartNow)
+        alert.addButton(withTitle: L10n.pluginRestartLater)
+
+        guard let window else {
+            handlePluginRestartResponse(alert.runModal())
+            return
+        }
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            self?.handlePluginRestartResponse(response)
+        }
+    }
+
+    private func handlePluginRestartResponse(_ response: NSApplication.ModalResponse) {
+        suppressAutoClose = false
+        initialPluginEnabledStates = pluginEnabledStates(for: pluginIDs)
+
+        if response == .alertFirstButtonReturn {
+            restartApplication()
+        } else {
+            close()
+        }
+    }
+
+    private func restartApplication() {
+        guard let appURL = restartableAppBundleURL() else {
+            showRestartUnavailable()
+            return
+        }
+
+        UserDefaults.standard.synchronize()
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-n", appURL.path]
+
+        do {
+            try process.run()
+            NSApp.terminate(nil)
+        } catch {
+            showRestartFailed(message: error.localizedDescription)
+        }
+    }
+
+    private func restartableAppBundleURL() -> URL? {
+        let bundleURL = Bundle.main.bundleURL
+        guard bundleURL.pathExtension.lowercased() == "app" else { return nil }
+        return bundleURL
+    }
+
+    private func showRestartUnavailable() {
+        let alert = NSAlert()
+        alert.messageText = L10n.pluginRestartTitle
+        alert.informativeText = L10n.pluginRestartUnavailable
+        alert.addButton(withTitle: L10n.btnOK)
+        alert.runModal()
+        close()
+    }
+
+    private func showRestartFailed(message: String) {
+        let alert = NSAlert()
+        alert.messageText = L10n.pluginRestartFailed
+        alert.informativeText = message
+        alert.addButton(withTitle: L10n.btnOK)
+        alert.runModal()
     }
 }
 

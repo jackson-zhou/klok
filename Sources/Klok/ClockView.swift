@@ -470,6 +470,12 @@ final class ClockView: NSView {
         pinItem.target = self
         menu.addItem(pinItem)
 
+        PluginMenuBuilder.appendPluginItems(
+            from: PluginManager.shared.menuRegistry,
+            location: .clockMenu,
+            to: menu
+        )
+
         menu.addItem(.separator())
 
         // target = nil lets the event travel up the responder chain to NSApplication

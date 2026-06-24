@@ -30,6 +30,7 @@ enum L10n {
     static var tabAppearance: String { s("外观",          "外觀",          "Appearance") }
     static var tabAlarms:     String { s("提醒",          "提醒",          "Reminders") }
     static var tabMenuBar:    String { s("日历",          "日曆",          "Calendar") }
+    static var tabPlugins:    String { s("插件",          "外掛",          "Plugins") }
 
     // MARK: - General tab
 
@@ -161,6 +162,49 @@ enum L10n {
     static var menuAlwaysOnTop: String { s("总在最前面", "總在最前面", "Always on Top") }
     static var menuPinDesktop:  String { s("固定到桌面", "固定到桌面", "Pin to Desktop") }
     static var menuQuit:        String { s("退出 Klok",  "結束 Klok",  "Quit Klok") }
+
+    // MARK: - Plugins
+
+    static var pluginListTitle:              String { s("插件列表", "外掛列表", "List of plugins") }
+    static var pluginConfigure:              String { s("配置", "設定", "Configure") }
+    static var pluginRestartHint:            String { s("插件启用或停用将在下次启动 Klok 后生效。", "外掛啟用或停用將在下次啟動 Klok 後生效。", "Plugin enablement changes take effect the next time you run Klok.") }
+    static var pluginRestartTitle:           String { s("插件设置已更改", "外掛設定已變更", "Plugin settings changed") }
+    static var pluginRestartMessage:         String { s("插件启用或停用需要重启 Klok 后生效。", "外掛啟用或停用需要重新啟動 Klok 後生效。", "Plugin enablement changes require restarting Klok.") }
+    static var pluginRestartNow:             String { s("立即重启", "立即重新啟動", "Restart Now") }
+    static var pluginRestartLater:           String { s("稍后", "稍後", "Later") }
+    static var pluginRestartUnavailable:     String { s("当前运行方式不支持自动重启，请手动退出并重新打开 Klok。", "目前執行方式不支援自動重新啟動，請手動結束並重新開啟 Klok。", "Automatic restart is unavailable for this launch mode. Quit and reopen Klok manually.") }
+    static var pluginRestartFailed:          String { s("无法重启 Klok", "無法重新啟動 Klok", "Unable to restart Klok") }
+    static var pluginNoConfiguration:        String { s("这个插件没有配置项。", "這個外掛沒有設定項。", "This plugin has no configuration.") }
+    static var pluginScreenshotMenu:         String { s("截图…", "截圖…", "Screenshot…") }
+    static var pluginScreenshotTitle:        String { s("截图", "截圖", "Screenshot") }
+    static var pluginScreenshotCopied:       String { s("截图已复制到剪贴板。", "截圖已複製到剪貼簿。", "Screenshot copied to clipboard.") }
+    static var pluginScreenshotFailed:       String { s("截图失败", "截圖失敗", "Screenshot failed") }
+    static var pluginScreenshotConfigInfo:   String { s("当前版本支持全屏遮罩、拖拽选区、复制和保存。后续版本可增加标注、快捷键和默认保存目录配置。", "目前版本支援全螢幕遮罩、拖曳選區、複製和儲存。後續版本可增加標註、快捷鍵和預設儲存目錄設定。", "This version supports full-screen overlay capture, drag selection, copy, and save. Annotation, shortcuts, and default save location can be added later.") }
+    static var pluginScreenshotPermissionHint: String { s("无法读取屏幕内容。请在系统设置中允许当前 Klok.app 进行屏幕录制；开启后请重启 Klok。", "無法讀取螢幕內容。請在系統設定中允許目前的 Klok.app 進行螢幕錄製；開啟後請重新啟動 Klok。", "Unable to read the screen. Allow the current Klok.app to record the screen in System Settings, then restart Klok.") }
+    static var pluginScreenshotSelect:       String { s("选择", "選取", "Select") }
+    static var pluginScreenshotRect:         String { s("矩形", "矩形", "Rect") }
+    static var pluginScreenshotEllipse:      String { s("圆形", "圓形", "Ellipse") }
+    static var pluginScreenshotArrow:        String { s("箭头", "箭頭", "Arrow") }
+    static var pluginScreenshotBrush:        String { s("画笔", "畫筆", "Brush") }
+    static var pluginScreenshotText:         String { s("文字", "文字", "Text") }
+    static var pluginScreenshotTextPlaceholder: String { s("输入文字", "輸入文字", "Enter text") }
+    static var pluginScreenshotMosaic:       String { s("马赛克", "馬賽克", "Mosaic") }
+    static var pluginScreenshotColor:        String { s("颜色", "顏色", "Color") }
+    static var pluginScreenshotUndo:         String { s("撤销", "復原", "Undo") }
+    static var pluginScreenshotCopy:         String { s("复制", "複製", "Copy") }
+    static var pluginScreenshotSave:         String { s("保存", "儲存", "Save") }
+    static var pluginScreenshotShortcutEnabled: String { s("启用截图快捷键", "啟用截圖快捷鍵", "Enable screenshot shortcut") }
+    static var pluginScreenshotShortcutKey:  String { s("按键：", "按鍵：", "Key:") }
+    static var pluginScreenshotShortcutCommand: String { "⌘" }
+    static var pluginScreenshotShortcutShift: String { "⇧" }
+    static var pluginScreenshotShortcutControl: String { "⌃" }
+    static var pluginScreenshotShortcutOption: String { "⌥" }
+    static var pluginScreenshotShortcutHint: String { s("默认全局快捷键：⌃⌘A。保存后立即生效；如和系统快捷键冲突，请换一个组合。", "預設全域快捷鍵：⌃⌘A。儲存後立即生效；如和系統快捷鍵衝突，請換一個組合。", "Default global shortcut: ⌃⌘A. Changes take effect immediately; change it if it conflicts with a system shortcut.") }
+    static var pluginClipboardMenu:          String { s("剪贴板历史…", "剪貼簿歷史…", "Clipboard History…") }
+    static var pluginClipboardTitle:         String { s("剪贴板历史", "剪貼簿歷史", "Clipboard History") }
+    static var pluginClipboardSearch:        String { s("搜索剪贴板历史", "搜尋剪貼簿歷史", "Search clipboard history") }
+    static var pluginClipboardClear:         String { s("清空历史", "清空歷史", "Clear History") }
+    static var pluginClipboardConfigInfo:    String { s("当前版本记录文本剪贴板历史，最多保留 200 条。后续版本可增加持久化、忽略应用、图片和富文本支持。", "目前版本記錄文字剪貼簿歷史，最多保留 200 筆。後續版本可增加持久化、忽略應用程式、圖片和富文字支援。", "This version keeps text clipboard history in memory, up to 200 items. Persistence, ignored apps, images, and rich text can be added later.") }
 
     // MARK: - Format token help descriptions
 
