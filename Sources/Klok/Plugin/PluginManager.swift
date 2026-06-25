@@ -21,7 +21,7 @@ final class PluginManager {
 
     func activateEnabledPlugins() {
         registerBuiltinPlugins()
-        for plugin in plugins where settings.isEnabled(pluginID: plugin.id) {
+        for plugin in plugins where settings.isEnabled(pluginID: plugin.id, default: plugin.isEnabledByDefault) {
             let context = PluginContext(menuRegistry: menuRegistry, settings: settings)
             plugin.activate(context: context)
             activePluginIDs.insert(plugin.id)

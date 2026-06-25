@@ -837,7 +837,10 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
         var y: CGFloat = 272
         for (idx, plugin) in plugins.enumerated() {
-            let enabled = PluginManager.shared.settings.isEnabled(pluginID: plugin.id)
+            let enabled = PluginManager.shared.settings.isEnabled(
+                pluginID: plugin.id,
+                default: plugin.isEnabledByDefault
+            )
             let check = NSButton(checkboxWithTitle: plugin.name, target: self, action: #selector(pluginEnabledChanged(_:)))
             check.state = enabled ? .on : .off
             check.tag = idx
@@ -912,7 +915,14 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
     private func pluginEnabledStates(for pluginIDs: [String]) -> [String: Bool] {
         Dictionary(uniqueKeysWithValues: pluginIDs.map { pluginID in
-            (pluginID, PluginManager.shared.settings.isEnabled(pluginID: pluginID))
+            let plugin = PluginManager.shared.plugin(withID: pluginID)
+            return (
+                pluginID,
+                PluginManager.shared.settings.isEnabled(
+                    pluginID: pluginID,
+                    default: plugin?.isEnabledByDefault ?? true
+                )
+            )
         })
     }
 

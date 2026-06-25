@@ -10,15 +10,18 @@ final class ClockView: NSView {
     private var showDate: Bool = Settings.shared.showDate
     private var hoverTransparent: Bool = Settings.shared.hoverTransparent
     private var isDragging = false
+    private var mouseDownHitClock = false
     private var dragStart = NSPoint.zero
-    private var calendarPanel: CalendarPanel
+    private var hitTestImageID: ObjectIdentifier?
+    private var hitTestBitmap: NSBitmapImageRep?
+    private let calendarPanelProvider: () -> CalendarPanel
 
     override init(frame: NSRect) {
-        fatalError("use init(frame:calendarPanel:)")
+        fatalError("use init(frame:calendarPanelProvider:)")
     }
 
-    init(frame: NSRect, calendarPanel: CalendarPanel) {
-        self.calendarPanel = calendarPanel
+    init(frame: NSRect, calendarPanelProvider: @escaping () -> CalendarPanel) {
+        self.calendarPanelProvider = calendarPanelProvider
         super.init(frame: frame)
         setup()
     }
@@ -61,6 +64,8 @@ final class ClockView: NSView {
         showAmPm = Settings.shared.showAmPm
         showDate = Settings.shared.showDate
         hoverTransparent = Settings.shared.hoverTransparent
+        hitTestImageID = nil
+        hitTestBitmap = nil
         updateTrackingArea()
         needsDisplay = true
     }
@@ -416,20 +421,97 @@ final class ClockView: NSView {
 
     // MARK: - Mouse interaction
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard isPointInClock(point) else { return nil }
+        return super.hitTest(point)
+    }
+
+    private func isPointInClock(_ point: NSPoint) -> Bool {
+        guard bounds.contains(point) else { return false }
+
+        if let clocxSkin {
+            return isPointInClocXSkin(point, skin: clocxSkin)
+        }
+
+        let size = min(bounds.width, bounds.height)
+        let radius = size / 2 - 4
+        let dx = point.x - bounds.midX
+        let dy = point.y - bounds.midY
+        return dx * dx + dy * dy <= radius * radius
+    }
+
+    private func isPointInClocXSkin(_ point: NSPoint, skin: ClocXSkin) -> Bool {
+        let imgW = skin.facePixelWidth
+        let imgH = skin.facePixelHeight
+        guard imgW > 0, imgH > 0 else { return false }
+
+        let viewSize = min(bounds.width, bounds.height)
+        let scale = viewSize / max(imgW, imgH)
+        let drawW = imgW * scale
+        let drawH = imgH * scale
+        let originX = bounds.midX - drawW / 2
+        let originY = bounds.midY - drawH / 2
+        let faceRect = NSRect(x: originX, y: originY, width: drawW, height: drawH)
+        guard faceRect.contains(point) else { return false }
+
+        guard let cgImg = skin.faceImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return true
+        }
+
+        let pixelX = Int(((point.x - originX) / drawW) * CGFloat(cgImg.width))
+        let pixelY = Int(((faceRect.maxY - point.y) / drawH) * CGFloat(cgImg.height))
+        return isOpaqueClockPixel(x: pixelX, y: pixelY, in: cgImg, cutColor: skin.cutColor)
+    }
+
+    private func isOpaqueClockPixel(x: Int, y: Int, in image: CGImage, cutColor: NSColor?) -> Bool {
+        guard x >= 0, y >= 0, x < image.width, y < image.height else { return false }
+
+        let imageID = ObjectIdentifier(image)
+        if hitTestImageID != imageID {
+            hitTestImageID = imageID
+            hitTestBitmap = NSBitmapImageRep(cgImage: image)
+        }
+        guard let color = hitTestBitmap?.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else {
+            return true
+        }
+
+        if color.alphaComponent < 0.06 { return false }
+
+        if let cutColor {
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
+            var tr: CGFloat = 0, tg: CGFloat = 0, tb: CGFloat = 0
+            color.getRed(&r, green: &g, blue: &b, alpha: nil)
+            cutColor.usingColorSpace(.sRGB)?.getRed(&tr, green: &tg, blue: &tb, alpha: nil)
+            return abs(Int(r * 255) - Int(tr * 255)) >= 16
+                || abs(Int(g * 255) - Int(tg * 255)) >= 16
+                || abs(Int(b * 255) - Int(tb * 255)) >= 16
+        }
+
+        return true
+    }
+
     override func mouseDown(with event: NSEvent) {
         isDragging = false
+        mouseDownHitClock = isPointInClock(convert(event.locationInWindow, from: nil))
+        guard mouseDownHitClock else { return }
         dragStart = event.locationInWindow
     }
 
     override func mouseUp(with event: NSEvent) {
+        guard mouseDownHitClock else {
+            isDragging = false
+            return
+        }
         // Only show calendar if we didn't drag
         if !isDragging {
-            calendarPanel.toggleNearView(self)
+            calendarPanelProvider().toggleNearView(self)
         }
         isDragging = false
+        mouseDownHitClock = false
     }
 
     override func mouseDragged(with event: NSEvent) {
+        guard mouseDownHitClock else { return }
         guard let win = window else { return }
         let loc = event.locationInWindow
         let dx = loc.x - dragStart.x
@@ -448,6 +530,7 @@ final class ClockView: NSView {
     }
 
     override func rightMouseDown(with event: NSEvent) {
+        guard isPointInClock(convert(event.locationInWindow, from: nil)) else { return }
         let menu = NSMenu(title: "Klok")
 
         let prefsItem = NSMenuItem(title: L10n.menuPrefs, action: #selector(openPreferences), keyEquivalent: ",")

@@ -5,6 +5,7 @@ protocol KlokPlugin: AnyObject {
     var name: String { get }
     var version: String { get }
     var isConfigurable: Bool { get }
+    var isEnabledByDefault: Bool { get }
 
     func activate(context: PluginContext)
     func deactivate()
@@ -13,6 +14,7 @@ protocol KlokPlugin: AnyObject {
 
 extension KlokPlugin {
     var isConfigurable: Bool { false }
+    var isEnabledByDefault: Bool { true }
 
     func showConfiguration(parentWindow: NSWindow?) {
         let alert = NSAlert()

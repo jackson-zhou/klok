@@ -5,12 +5,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var preferencesController: PreferencesWindowController?
     private var statusItem: NSStatusItem!
     private var clockTimer: Timer?
-    let calendarPanel = CalendarPanel()
+    private var calendarPanel: CalendarPanel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
-        clockWindowController = ClockWindowController(calendarPanel: calendarPanel)
+        clockWindowController = ClockWindowController(calendarPanelProvider: { [weak self] in
+            self?.calendarPanelInstance() ?? CalendarPanel()
+        })
         clockWindowController.showClock()
         AlarmManager.shared.start()
         PluginManager.shared.activateEnabledPlugins()
@@ -236,7 +238,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func toggleCalendarPopover(_ sender: NSStatusBarButton) {
-        calendarPanel.toggle(relativeTo: sender)
+        calendarPanelInstance().toggle(relativeTo: sender)
+    }
+
+    private func calendarPanelInstance() -> CalendarPanel {
+        if let calendarPanel { return calendarPanel }
+        let panel = CalendarPanel()
+        calendarPanel = panel
+        return panel
     }
 
     private func showStatusMenu() {

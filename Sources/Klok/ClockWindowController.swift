@@ -3,7 +3,7 @@ import AppKit
 final class ClockWindowController: NSWindowController {
     private let clockView: ClockView
 
-    init(calendarPanel: CalendarPanel) {
+    init(calendarPanelProvider: @escaping () -> CalendarPanel) {
         let size = Settings.shared.clockSize
         let x = Settings.shared.windowX
         let y = Settings.shared.windowY
@@ -22,7 +22,7 @@ final class ClockWindowController: NSWindowController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         clockView = ClockView(frame: NSRect(origin: .zero, size: CGSize(width: size, height: size)),
-                              calendarPanel: calendarPanel)
+                              calendarPanelProvider: calendarPanelProvider)
         panel.contentView = clockView
 
         super.init(window: panel)

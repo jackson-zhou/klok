@@ -10,6 +10,7 @@ final class ClipboardHistoryPlugin: KlokPlugin {
     let name = "Clipboard History"
     let version = "0.1.0"
     let isConfigurable = true
+    let isEnabledByDefault = false
 
     private var monitor: PasteboardMonitor?
     private var history: [ClipboardHistoryItem] = []
@@ -18,7 +19,9 @@ final class ClipboardHistoryPlugin: KlokPlugin {
 
     func activate(context: PluginContext) {
         self.context = context
-        monitor = PasteboardMonitor { [weak self] text in
+        let intervalMs = context.settings.integer(pluginID: id, key: "pollIntervalMs", default: 2_000)
+        let interval = max(1.0, Double(intervalMs) / 1_000.0)
+        monitor = PasteboardMonitor(interval: interval) { [weak self] text in
             self?.record(text)
         }
         monitor?.start()
@@ -62,6 +65,8 @@ final class ClipboardHistoryPlugin: KlokPlugin {
     private func record(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        let maxBytes = context?.settings.integer(pluginID: id, key: "maxClipBytes", default: 256 * 1024) ?? 256 * 1024
+        guard trimmed.utf8.count <= maxBytes else { return }
 
         DispatchQueue.main.async {
             self.history.removeAll { $0.text == trimmed }
@@ -99,15 +104,17 @@ final class ClipboardHistoryPlugin: KlokPlugin {
 final class PasteboardMonitor {
     private var timer: Timer?
     private var lastChangeCount = NSPasteboard.general.changeCount
+    private let interval: TimeInterval
     private let onTextChanged: (String) -> Void
 
-    init(onTextChanged: @escaping (String) -> Void) {
+    init(interval: TimeInterval, onTextChanged: @escaping (String) -> Void) {
+        self.interval = interval
         self.onTextChanged = onTextChanged
     }
 
     func start() {
         stop()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             self?.poll()
         }
     }

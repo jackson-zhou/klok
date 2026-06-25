@@ -181,6 +181,27 @@ enum L10n {
     static var pluginScreenshotFailed:       String { s("截图失败", "截圖失敗", "Screenshot failed") }
     static var pluginScreenshotConfigInfo:   String { s("当前版本支持全屏遮罩、拖拽选区、复制和保存。后续版本可增加标注、快捷键和默认保存目录配置。", "目前版本支援全螢幕遮罩、拖曳選區、複製和儲存。後續版本可增加標註、快捷鍵和預設儲存目錄設定。", "This version supports full-screen overlay capture, drag selection, copy, and save. Annotation, shortcuts, and default save location can be added later.") }
     static var pluginScreenshotPermissionHint: String { s("无法读取屏幕内容。请在系统设置中允许当前 Klok.app 进行屏幕录制；开启后请重启 Klok。", "無法讀取螢幕內容。請在系統設定中允許目前的 Klok.app 進行螢幕錄製；開啟後請重新啟動 Klok。", "Unable to read the screen. Allow the current Klok.app to record the screen in System Settings, then restart Klok.") }
+    static var pluginScreenRecordingTitle:   String { s("录屏", "錄影", "Screen Recording") }
+    static var pluginScreenRecordingStart:   String { s("开始录屏", "開始錄影", "Start Recording") }
+    static var pluginScreenRecordingStop:    String { s("停止录屏", "停止錄影", "Stop Recording") }
+    static var pluginScreenRecordingSave:    String { s("保存录屏", "儲存錄影", "Save Recording") }
+    static var pluginScreenRecordingDownload: String { s("下载", "下載", "Download") }
+    static var pluginScreenRecordingPreview: String { s("录屏预览", "錄影預覽", "Recording Preview") }
+    static var pluginScreenRecordingFormat:  String { s("选择格式", "選擇格式", "Format") }
+    static var pluginScreenRecordingSpeaker: String { s("扬声器", "揚聲器", "Speaker") }
+    static var pluginScreenRecordingMicrophone: String { s("麦克风", "麥克風", "Microphone") }
+    static var pluginScreenRecordingCamera:  String { s("摄像头", "攝影機", "Camera") }
+    static var pluginScreenRecordingMouse:   String { s("鼠标设置", "滑鼠設定", "Mouse") }
+    static var pluginScreenRecordingGIFHint: String { s("GIF 录制最长 30 秒。", "GIF 錄影最長 30 秒。", "GIF recording is limited to 30 seconds.") }
+    static var pluginScreenRecordingMediaUnsupported: String { s("音频和摄像头混流需要后续接入 ScreenCaptureKit 音视频管线。", "音訊和攝影機混流需要後續接入 ScreenCaptureKit 音視訊管線。", "Audio and camera mixing require the ScreenCaptureKit media pipeline.") }
+    static var pluginScreenRecordingSaved:   String { s("录屏已保存。", "錄影已儲存。", "Recording saved.") }
+    static var pluginScreenRecordingFailed:  String { s("录屏失败", "錄影失敗", "Screen recording failed") }
+    static var pluginScreenRecordingAlreadyRunning: String { s("已有录屏正在进行，请先停止当前录屏。", "已有錄影正在進行，請先停止目前錄影。", "A recording is already running. Stop it before starting another one.") }
+    static var pluginScreenRecordingNotRunning: String { s("当前没有正在进行的录屏。", "目前沒有正在進行的錄影。", "No recording is currently running.") }
+    static var pluginScreenRecordingInvalidDisplay: String { s("无法识别要录制的显示器。", "無法識別要錄製的顯示器。", "Unable to identify the display to record.") }
+    static var pluginScreenRecordingInvalidRegion: String { s("录制区域太小。", "錄製區域太小。", "The recording region is too small.") }
+    static var pluginScreenRecordingCaptureFailed: String { s("无法读取录制区域的屏幕内容。", "無法讀取錄製區域的螢幕內容。", "Unable to capture the selected recording region.") }
+    static var pluginScreenRecordingEncodeFailed: String { s("无法编码录屏文件。", "無法編碼錄影檔案。", "Unable to encode the recording file.") }
     static var pluginScreenshotSelect:       String { s("选择", "選取", "Select") }
     static var pluginScreenshotRect:         String { s("矩形", "矩形", "Rect") }
     static var pluginScreenshotEllipse:      String { s("圆形", "圓形", "Ellipse") }

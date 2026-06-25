@@ -1,4 +1,6 @@
 import AppKit
+import AVFoundation
+import AVKit
 import Carbon
 import CoreGraphics
 import ImageIO
@@ -13,6 +15,11 @@ final class ScreenshotPlugin: KlokPlugin {
 
     private weak var context: PluginContext?
     private var session: ScreenshotSessionController?
+    private var recording: ScreenRecordingController?
+    private var countdownWindow: ScreenRecordingCountdownWindow?
+    private var controlWindow: ScreenRecordingControlWindow?
+    private var boundsWindow: ScreenRecordingBoundsWindow?
+    private var previewWindows: [ScreenRecordingPreviewWindowController] = []
     private var globalHotKey: GlobalHotKey?
 
     func activate(context: PluginContext) {
@@ -30,6 +37,14 @@ final class ScreenshotPlugin: KlokPlugin {
         unregisterShortcut()
         session?.cancel()
         session = nil
+        recording?.stop()
+        recording = nil
+        countdownWindow?.close()
+        countdownWindow = nil
+        controlWindow?.close()
+        controlWindow = nil
+        boundsWindow?.close()
+        boundsWindow = nil
     }
 
     func showConfiguration(parentWindow: NSWindow?) {
@@ -97,9 +112,20 @@ final class ScreenshotPlugin: KlokPlugin {
     }
 
     private func startCapture() {
-        session?.cancel()
+        guard session == nil, countdownWindow == nil, controlWindow == nil, boundsWindow == nil else {
+            return
+        }
+
+        guard recording == nil else {
+            context?.showAlert(title: L10n.pluginScreenRecordingTitle, message: L10n.pluginScreenRecordingAlreadyRunning)
+            return
+        }
+
         let newSession = ScreenshotSessionController(
             onCopy: { [weak self] in self?.notifyCopied() },
+            onStartRecording: { [weak self] screen, rect, options in
+                self?.startRecording(screen: screen, rect: rect, options: options)
+            },
             onFinish: { [weak self] in self?.session = nil },
             onError: { [weak self] message in
                 self?.context?.showAlert(title: L10n.pluginScreenshotFailed, message: message)
@@ -109,12 +135,89 @@ final class ScreenshotPlugin: KlokPlugin {
         newSession.start()
     }
 
+    private func startRecording(screen: NSScreen, rect: NSRect, options: ScreenRecordingOptions) {
+        countdownWindow?.close()
+        let countdown = ScreenRecordingCountdownWindow(screen: screen, selection: rect) { [weak self] in
+            self?.countdownWindow = nil
+            self?.beginRecording(screen: screen, rect: rect, options: options)
+        }
+        countdownWindow = countdown
+        countdown.start()
+    }
+
+    private func beginRecording(screen: NSScreen, rect: NSRect, options: ScreenRecordingOptions) {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Klok Recording \(Self.filenameTimestamp())")
+            .appendingPathExtension(options.fileExtension)
+
+        do {
+            let controller = try ScreenRecordingController(screen: screen, rect: rect, outputURL: url, options: options) { [weak self] result in
+                DispatchQueue.main.async {
+                    self?.controlWindow?.close()
+                    self?.controlWindow = nil
+                    self?.boundsWindow?.close()
+                    self?.boundsWindow = nil
+                    self?.recording = nil
+                    switch result {
+                    case .success(let url):
+                        self?.showRecordingPreview(url: url)
+                    case .failure(let error):
+                        self?.context?.showAlert(title: L10n.pluginScreenRecordingFailed, message: error.localizedDescription)
+                    }
+                }
+            }
+            recording = controller
+            try controller.start()
+            let bounds = ScreenRecordingBoundsWindow(screen: screen, selection: rect)
+            boundsWindow = bounds
+            bounds.show()
+            let control = ScreenRecordingControlWindow(maxDuration: options.maxDuration) { [weak self] in
+                self?.stopRecording()
+            }
+            controlWindow = control
+            control.show()
+        } catch {
+            context?.showAlert(title: L10n.pluginScreenRecordingFailed, message: error.localizedDescription)
+        }
+    }
+
+    private func stopRecording() {
+        guard let recording else {
+            context?.showAlert(title: L10n.pluginScreenRecordingTitle, message: L10n.pluginScreenRecordingNotRunning)
+            return
+        }
+        recording.stop()
+    }
+
+    private func showRecordingPreview(url: URL) {
+        let controller = ScreenRecordingPreviewWindowController(url: url) { [weak self] controller in
+            self?.previewWindows.removeAll { $0 === controller }
+        }
+        previewWindows.append(controller)
+        controller.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
     private func notifyCopied() {
         let content = UNMutableNotificationContent()
         content.title = L10n.pluginScreenshotTitle
         content.body = L10n.pluginScreenshotCopied
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
+    }
+
+    private func notifyRecordingSaved() {
+        let content = UNMutableNotificationContent()
+        content.title = L10n.pluginScreenRecordingTitle
+        content.body = L10n.pluginScreenRecordingSaved
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
+    }
+
+    private static func filenameTimestamp() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        return formatter.string(from: Date())
     }
 
     private func modifierCheckbox(_ title: String, selected: Bool, x: CGFloat, y: CGFloat) -> NSButton {
@@ -271,14 +374,22 @@ private final class GlobalHotKey {
 
 private final class ScreenshotSessionController {
     private var windows: [ScreenshotOverlayWindow] = []
+    private var optionsPanel: ScreenRecordingOptionsPanel?
     private var permissionCheckWorkItem: DispatchWorkItem?
     private var isFinished = false
     private let onCopy: () -> Void
+    private let onStartRecording: ((NSScreen, NSRect, ScreenRecordingOptions) -> Void)?
     private let onFinish: () -> Void
     private let onError: (String) -> Void
 
-    init(onCopy: @escaping () -> Void, onFinish: @escaping () -> Void, onError: @escaping (String) -> Void) {
+    init(
+        onCopy: @escaping () -> Void,
+        onStartRecording: ((NSScreen, NSRect, ScreenRecordingOptions) -> Void)?,
+        onFinish: @escaping () -> Void,
+        onError: @escaping (String) -> Void
+    ) {
         self.onCopy = onCopy
+        self.onStartRecording = onStartRecording
         self.onFinish = onFinish
         self.onError = onError
     }
@@ -296,9 +407,14 @@ private final class ScreenshotSessionController {
     }
 
     private func startAfterPermissionGranted() {
+        let windowCandidates = Self.windowCandidates()
         let snapshots = NSScreen.screens.compactMap { screen -> ScreenSnapshot? in
             guard let image = Self.capture(screen: screen) else { return nil }
-            return ScreenSnapshot(screen: screen, image: image)
+            return ScreenSnapshot(
+                screen: screen,
+                image: image,
+                windowCandidates: Self.localWindowCandidates(for: screen, candidates: windowCandidates)
+            )
         }
 
         guard !snapshots.isEmpty else {
@@ -317,6 +433,12 @@ private final class ScreenshotSessionController {
             window.overlayView.onSave = { [weak self, weak window] rect in
                 guard let self, let window else { return }
                 self.saveSelection(rect, from: window.overlayView)
+            }
+            if onStartRecording != nil {
+                window.overlayView.onRecord = { [weak self, weak window] rect in
+                    guard let self, let window else { return }
+                    self.recordSelection(rect, from: window.overlayView)
+                }
             }
             windows.append(window)
             window.makeKeyAndOrderFront(nil)
@@ -374,11 +496,35 @@ private final class ScreenshotSessionController {
         }
     }
 
+    private func recordSelection(_ rect: NSRect, from view: ScreenshotOverlayView) {
+        guard let onStartRecording else { return }
+        let screen = view.screen
+
+        windows.forEach { $0.close() }
+        windows.removeAll()
+        NSCursor.arrow.set()
+
+        NSApp.activate(ignoringOtherApps: true)
+        let panel = ScreenRecordingOptionsPanel { [weak self] options in
+            guard let self else { return }
+            self.optionsPanel = nil
+            onStartRecording(screen, rect, options)
+            self.finish()
+        } onCancel: { [weak self] in
+            self?.optionsPanel = nil
+            self?.finish()
+        }
+        optionsPanel = panel
+        panel.show()
+    }
+
     private func finish() {
         guard !isFinished else { return }
         isFinished = true
         permissionCheckWorkItem?.cancel()
         permissionCheckWorkItem = nil
+        optionsPanel?.close()
+        optionsPanel = nil
         windows.forEach { $0.close() }
         windows.removeAll()
         NSCursor.arrow.set()
@@ -392,6 +538,56 @@ private final class ScreenshotSessionController {
         return CGDisplayCreateImage(id)
     }
 
+    private static func windowCandidates() -> [GlobalWindowCandidate] {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let rawWindows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return []
+        }
+
+        let currentPID = getpid()
+        return rawWindows.compactMap { info in
+            let ownerPID = info[kCGWindowOwnerPID as String] as? pid_t ?? 0
+            guard ownerPID != currentPID else { return nil }
+
+            let layer = info[kCGWindowLayer as String] as? Int ?? 0
+            guard layer == 0 else { return nil }
+
+            let alpha = info[kCGWindowAlpha as String] as? Double ?? 1
+            guard alpha > 0.05 else { return nil }
+
+            guard let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
+                  let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary) else {
+                return nil
+            }
+            guard bounds.width >= 32, bounds.height >= 32 else { return nil }
+
+            return GlobalWindowCandidate(bounds: NSRectFromCGRect(bounds))
+        }
+    }
+
+    private static func localWindowCandidates(
+        for screen: NSScreen,
+        candidates: [GlobalWindowCandidate]
+    ) -> [WindowCandidate] {
+        let screenFrame = screen.frame
+        return candidates.compactMap { candidate in
+            let flipped = NSRect(
+                x: candidate.bounds.minX,
+                y: screenFrame.maxY - candidate.bounds.maxY,
+                width: candidate.bounds.width,
+                height: candidate.bounds.height
+            )
+            let local = flipped.intersection(screenFrame)
+            guard !local.isNull, local.width >= 6, local.height >= 6 else { return nil }
+            return WindowCandidate(rect: NSRect(
+                x: local.minX - screenFrame.minX,
+                y: local.minY - screenFrame.minY,
+                width: local.width,
+                height: local.height
+            ))
+        }
+    }
+
     private func requestScreenCaptureAccess(completion: @escaping (Bool) -> Void) {
         if CGPreflightScreenCaptureAccess() {
             completion(true)
@@ -399,7 +595,19 @@ private final class ScreenshotSessionController {
         }
 
         _ = CGRequestScreenCaptureAccess()
+        Self.openScreenCapturePrivacySettings()
         waitForScreenCaptureAccess(deadline: Date().addingTimeInterval(60), completion: completion)
+    }
+
+    private static func openScreenCapturePrivacySettings() {
+        let urls = [
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenRecording"
+        ]
+        for value in urls {
+            guard let url = URL(string: value), NSWorkspace.shared.open(url) else { continue }
+            return
+        }
     }
 
     private func waitForScreenCaptureAccess(deadline: Date, completion: @escaping (Bool) -> Void) {
@@ -429,6 +637,828 @@ private final class ScreenshotSessionController {
 private struct ScreenSnapshot {
     let screen: NSScreen
     let image: CGImage
+    let windowCandidates: [WindowCandidate]
+}
+
+private struct GlobalWindowCandidate {
+    let bounds: NSRect
+}
+
+private struct WindowCandidate {
+    let rect: NSRect
+}
+
+private struct ScreenRecordingOptions {
+    enum Format {
+        case mp4
+        case gif
+    }
+
+    let format: Format
+    let includeMouse: Bool
+
+    var maxDuration: TimeInterval {
+        switch format {
+        case .mp4: return 60 * 60
+        case .gif: return 30
+        }
+    }
+
+    var fileExtension: String {
+        switch format {
+        case .mp4: return "mp4"
+        case .gif: return "gif"
+        }
+    }
+
+    var fileType: AVFileType {
+        switch format {
+        case .mp4: return .mp4
+        case .gif: return .mp4
+        }
+    }
+
+    static let `default` = ScreenRecordingOptions(format: .mp4, includeMouse: true)
+}
+
+private final class ScreenRecordingOptionsPanel: NSObject, NSWindowDelegate {
+    private let panel: NSPanel
+    private let onStart: (ScreenRecordingOptions) -> Void
+    private let onCancel: () -> Void
+    private let mp4Button: NSButton
+    private let gifButton: NSButton
+    private let mouseButton: NSButton
+    private var isCompleting = false
+
+    init(onStart: @escaping (ScreenRecordingOptions) -> Void, onCancel: @escaping () -> Void) {
+        self.onStart = onStart
+        self.onCancel = onCancel
+        self.mp4Button = NSButton(radioButtonWithTitle: "MP4", target: nil, action: nil)
+        self.gifButton = NSButton(radioButtonWithTitle: "GIF", target: nil, action: nil)
+        self.mouseButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+
+        panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 190),
+            styleMask: [.titled, .closable, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        super.init()
+        panel.title = L10n.pluginScreenRecordingTitle
+        panel.level = .floating
+        panel.isReleasedWhenClosed = false
+        panel.delegate = self
+
+        let view = NSView(frame: panel.contentView?.bounds ?? .zero)
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        panel.contentView = view
+
+        let startButton = NSButton(title: L10n.pluginScreenRecordingStart, target: nil, action: nil)
+        startButton.bezelStyle = .rounded
+        startButton.isBordered = false
+        startButton.wantsLayer = true
+        startButton.layer?.cornerRadius = 8
+        startButton.layer?.backgroundColor = NSColor.systemBlue.cgColor
+        startButton.contentTintColor = .white
+        startButton.font = .systemFont(ofSize: 19, weight: .semibold)
+        startButton.frame = NSRect(x: 18, y: 132, width: 384, height: 44)
+        startButton.target = self
+        startButton.action = #selector(startClicked)
+        view.addSubview(startButton)
+
+        let formatLabel = NSTextField(labelWithString: L10n.pluginScreenRecordingFormat)
+        formatLabel.textColor = .secondaryLabelColor
+        formatLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        formatLabel.frame = NSRect(x: 22, y: 94, width: 78, height: 22)
+        view.addSubview(formatLabel)
+
+        mp4Button.state = .on
+        mp4Button.font = .systemFont(ofSize: 14, weight: .medium)
+        mp4Button.frame = NSRect(x: 112, y: 94, width: 74, height: 22)
+        view.addSubview(mp4Button)
+
+        gifButton.font = .systemFont(ofSize: 14, weight: .medium)
+        gifButton.frame = NSRect(x: 206, y: 94, width: 74, height: 22)
+        gifButton.toolTip = L10n.pluginScreenRecordingGIFHint
+        view.addSubview(gifButton)
+
+        let controls: [(String, String, Bool)] = [
+            ("speaker.slash.fill", L10n.pluginScreenRecordingSpeaker, false),
+            ("mic.fill", L10n.pluginScreenRecordingMicrophone, false),
+            ("video.slash.fill", L10n.pluginScreenRecordingCamera, false),
+            ("cursorarrow", L10n.pluginScreenRecordingMouse, true)
+        ]
+        var x: CGFloat = 30
+        for (symbol, title, enabled) in controls {
+            let icon = NSButton(title: "", target: nil, action: nil)
+            icon.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
+            icon.imagePosition = .imageOnly
+            icon.isBordered = false
+            icon.isEnabled = enabled
+            icon.contentTintColor = .secondaryLabelColor
+            icon.frame = NSRect(x: x, y: 44, width: 34, height: 28)
+            if !enabled {
+                icon.toolTip = L10n.pluginScreenRecordingMediaUnsupported
+            }
+            view.addSubview(icon)
+
+            if title == L10n.pluginScreenRecordingMouse {
+                mouseButton.state = .on
+                mouseButton.isBordered = false
+                mouseButton.frame = NSRect(x: x + 22, y: 52, width: 18, height: 18)
+                view.addSubview(mouseButton)
+                icon.target = self
+                icon.action = #selector(toggleMouse)
+            }
+
+            let label = NSTextField(labelWithString: title)
+            label.alignment = .center
+            label.textColor = .secondaryLabelColor
+            label.font = .systemFont(ofSize: 11, weight: .medium)
+            label.frame = NSRect(x: x - 19, y: 20, width: 72, height: 18)
+            view.addSubview(label)
+            x += 98
+        }
+    }
+
+    func show() {
+        panel.center()
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    func close() {
+        panel.close()
+    }
+
+    @objc private func startClicked() {
+        isCompleting = true
+        panel.close()
+        let format: ScreenRecordingOptions.Format = gifButton.state == .on ? .gif : .mp4
+        onStart(ScreenRecordingOptions(format: format, includeMouse: mouseButton.state == .on))
+    }
+
+    @objc private func toggleMouse() {
+        mouseButton.state = mouseButton.state == .on ? .off : .on
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        guard !isCompleting else { return }
+        isCompleting = true
+        onCancel()
+    }
+}
+
+private final class ScreenRecordingCountdownWindow: NSPanel {
+    private final class CountdownView: NSView {
+        var value = 3 {
+            didSet { needsDisplay = true }
+        }
+        let selection: NSRect
+
+        init(frame: NSRect, selection: NSRect) {
+            self.selection = selection
+            super.init(frame: frame)
+            wantsLayer = true
+            layer?.backgroundColor = NSColor.clear.cgColor
+        }
+
+        required init?(coder: NSCoder) { fatalError() }
+
+        override func draw(_ dirtyRect: NSRect) {
+            NSColor.clear.setFill()
+            dirtyRect.fill()
+
+            let center = NSPoint(x: selection.midX, y: selection.midY)
+            let radius: CGFloat = 96
+            let circle = NSRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
+            NSColor.black.withAlphaComponent(0.55).setFill()
+            NSBezierPath(ovalIn: circle).fill()
+
+            let text = "\(value)"
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 110, weight: .bold),
+                .foregroundColor: NSColor.white
+            ]
+            let size = (text as NSString).size(withAttributes: attrs)
+            (text as NSString).draw(
+                at: NSPoint(x: circle.midX - size.width / 2, y: circle.midY - size.height / 2 + 6),
+                withAttributes: attrs
+            )
+        }
+    }
+
+    private let countdownView: CountdownView
+    private let onComplete: () -> Void
+    private var timer: Timer?
+    private var value = 3
+
+    init(screen: NSScreen, selection: NSRect, onComplete: @escaping () -> Void) {
+        countdownView = CountdownView(frame: NSRect(origin: .zero, size: screen.frame.size), selection: selection)
+        self.onComplete = onComplete
+        super.init(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        contentView = countdownView
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = false
+        level = .screenSaver
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        ignoresMouseEvents = true
+    }
+
+    func start() {
+        makeKeyAndOrderFront(nil)
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
+            guard let self else { return }
+            self.value -= 1
+            guard self.value > 0 else {
+                timer.invalidate()
+                self.close()
+                self.onComplete()
+                return
+            }
+            self.countdownView.value = self.value
+        }
+    }
+
+    override func close() {
+        timer?.invalidate()
+        timer = nil
+        super.close()
+    }
+}
+
+private final class ScreenRecordingBoundsWindow: NSPanel {
+    private final class BoundsView: NSView {
+        let selection: NSRect
+
+        init(frame: NSRect, selection: NSRect) {
+            self.selection = selection
+            super.init(frame: frame)
+            wantsLayer = true
+            layer?.backgroundColor = NSColor.clear.cgColor
+        }
+
+        required init?(coder: NSCoder) { fatalError() }
+
+        override func draw(_ dirtyRect: NSRect) {
+            NSColor.black.withAlphaComponent(0.22).setFill()
+            let mask = NSBezierPath(rect: bounds)
+            mask.append(NSBezierPath(rect: selection))
+            mask.windingRule = .evenOdd
+            mask.fill()
+
+            NSColor.systemRed.setStroke()
+            let path = NSBezierPath(rect: selection.insetBy(dx: 1, dy: 1))
+            path.lineWidth = 2
+            path.stroke()
+        }
+    }
+
+    init(screen: NSScreen, selection: NSRect) {
+        super.init(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        contentView = BoundsView(frame: NSRect(origin: .zero, size: screen.frame.size), selection: selection)
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = false
+        level = .screenSaver
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        ignoresMouseEvents = true
+        sharingType = .none
+    }
+
+    func show() {
+        orderFrontRegardless()
+    }
+}
+
+private final class ScreenRecordingControlWindow: NSPanel {
+    private let elapsedLabel = NSTextField(labelWithString: "00:00:00")
+    private let progress = NSProgressIndicator()
+    private let maxDuration: TimeInterval
+    private let stopHandler: () -> Void
+    private let startDate = Date()
+    private var timer: Timer?
+
+    init(maxDuration: TimeInterval, stopHandler: @escaping () -> Void) {
+        self.maxDuration = maxDuration
+        self.stopHandler = stopHandler
+
+        let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1200, height: 800)
+        let size = NSSize(width: 430, height: 54)
+        let origin = NSPoint(x: screenFrame.midX - size.width / 2, y: screenFrame.maxY - size.height - 18)
+        super.init(contentRect: NSRect(origin: origin, size: size), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = true
+        level = .screenSaver
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+
+        let view = NSView(frame: NSRect(origin: .zero, size: size))
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.96).cgColor
+        view.layer?.cornerRadius = 12
+        contentView = view
+
+        let grip = NSTextField(labelWithString: "⋮")
+        grip.textColor = .secondaryLabelColor
+        grip.font = .systemFont(ofSize: 18, weight: .semibold)
+        grip.frame = NSRect(x: 14, y: 18, width: 18, height: 22)
+        view.addSubview(grip)
+
+        let pause = NSButton(title: "", target: nil, action: nil)
+        pause.image = NSImage(systemSymbolName: "pause.fill", accessibilityDescription: nil)
+        pause.imagePosition = .imageOnly
+        pause.isBordered = false
+        pause.isEnabled = false
+        pause.contentTintColor = .labelColor
+        pause.frame = NSRect(x: 40, y: 13, width: 34, height: 28)
+        view.addSubview(pause)
+
+        elapsedLabel.font = .monospacedDigitSystemFont(ofSize: 18, weight: .medium)
+        elapsedLabel.textColor = .secondaryLabelColor
+        elapsedLabel.frame = NSRect(x: 92, y: 17, width: 88, height: 24)
+        view.addSubview(elapsedLabel)
+
+        let slash = NSTextField(labelWithString: "/")
+        slash.font = .systemFont(ofSize: 18, weight: .regular)
+        slash.textColor = .secondaryLabelColor
+        slash.frame = NSRect(x: 184, y: 17, width: 14, height: 24)
+        view.addSubview(slash)
+
+        let total = NSTextField(labelWithString: Self.format(maxDuration))
+        total.font = .monospacedDigitSystemFont(ofSize: 18, weight: .medium)
+        total.textColor = .secondaryLabelColor
+        total.frame = NSRect(x: 204, y: 17, width: 94, height: 24)
+        view.addSubview(total)
+
+        let stop = NSButton(title: L10n.pluginScreenRecordingStop, target: self, action: #selector(stopClicked))
+        stop.bezelStyle = .rounded
+        stop.isBordered = false
+        stop.wantsLayer = true
+        stop.layer?.backgroundColor = NSColor.systemRed.withAlphaComponent(0.82).cgColor
+        stop.layer?.cornerRadius = 7
+        stop.contentTintColor = .white
+        stop.font = .systemFont(ofSize: 15, weight: .semibold)
+        stop.frame = NSRect(x: 312, y: 10, width: 102, height: 34)
+        view.addSubview(stop)
+
+        progress.isIndeterminate = false
+        progress.minValue = 0
+        progress.maxValue = maxDuration
+        progress.doubleValue = 0
+        progress.controlSize = .small
+        progress.frame = NSRect(x: 12, y: 0, width: size.width - 24, height: 4)
+        view.addSubview(progress)
+    }
+
+    func show() {
+        makeKeyAndOrderFront(nil)
+        timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            self?.tick()
+        }
+    }
+
+    override func close() {
+        timer?.invalidate()
+        timer = nil
+        super.close()
+    }
+
+    private func tick() {
+        let elapsed = Date().timeIntervalSince(startDate)
+        elapsedLabel.stringValue = Self.format(elapsed)
+        progress.doubleValue = min(elapsed, maxDuration)
+        if elapsed >= maxDuration {
+            stopHandler()
+        }
+    }
+
+    @objc private func stopClicked() {
+        stopHandler()
+    }
+
+    private static func format(_ seconds: TimeInterval) -> String {
+        let value = max(0, Int(seconds))
+        return String(format: "%02d:%02d:%02d", value / 3600, (value / 60) % 60, value % 60)
+    }
+}
+
+private final class ScreenRecordingPreviewWindowController: NSWindowController, NSWindowDelegate {
+    private let url: URL
+    private let player: AVPlayer?
+    private let onClose: (ScreenRecordingPreviewWindowController) -> Void
+
+    init(url: URL, onClose: @escaping (ScreenRecordingPreviewWindowController) -> Void) {
+        self.url = url
+        self.player = url.pathExtension.lowercased() == "gif" ? nil : AVPlayer(url: url)
+        self.onClose = onClose
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 820, height: 560),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = L10n.pluginScreenRecordingPreview
+        super.init(window: window)
+        window.delegate = self
+        setupContent()
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    private func setupContent() {
+        guard let window else { return }
+        let content = NSView(frame: window.contentView?.bounds ?? .zero)
+        content.autoresizingMask = [.width, .height]
+        window.contentView = content
+
+        let toolbar = NSView(frame: NSRect(x: 0, y: content.bounds.height - 64, width: content.bounds.width, height: 64))
+        toolbar.autoresizingMask = [.width, .minYMargin]
+        toolbar.wantsLayer = true
+        toolbar.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        content.addSubview(toolbar)
+
+        let title = NSTextField(labelWithString: L10n.pluginScreenRecordingPreview)
+        title.font = .systemFont(ofSize: 18, weight: .semibold)
+        title.frame = NSRect(x: 18, y: 20, width: 240, height: 24)
+        toolbar.addSubview(title)
+
+        let download = NSButton(title: L10n.pluginScreenRecordingDownload, target: self, action: #selector(downloadClicked))
+        download.bezelStyle = .rounded
+        download.font = .systemFont(ofSize: 15, weight: .semibold)
+        download.frame = NSRect(x: toolbar.bounds.width - 126, y: 16, width: 108, height: 34)
+        download.autoresizingMask = [.minXMargin]
+        toolbar.addSubview(download)
+
+        let playerView = AVPlayerView(frame: NSRect(x: 0, y: 0, width: content.bounds.width, height: content.bounds.height - 64))
+        playerView.autoresizingMask = [.width, .height]
+        if let player {
+            playerView.player = player
+            playerView.controlsStyle = .floating
+            content.addSubview(playerView)
+        } else {
+            let imageView = NSImageView(frame: playerView.frame)
+            imageView.autoresizingMask = [.width, .height]
+            imageView.imageScaling = .scaleProportionallyUpOrDown
+            imageView.image = NSImage(contentsOf: url)
+            content.addSubview(imageView)
+        }
+    }
+
+    override func showWindow(_ sender: Any?) {
+        super.showWindow(sender)
+        window?.center()
+        player?.play()
+    }
+
+    @objc private func downloadClicked() {
+        let panel = NSSavePanel()
+        panel.title = L10n.pluginScreenRecordingDownload
+        panel.nameFieldStringValue = url.lastPathComponent
+        panel.allowedContentTypes = url.pathExtension.lowercased() == "gif" ? [.gif] : [.mpeg4Movie]
+        panel.canCreateDirectories = true
+        panel.beginSheetModal(for: window!) { [weak self] response in
+            guard response == .OK, let destination = panel.url, let self else { return }
+            do {
+                if FileManager.default.fileExists(atPath: destination.path) {
+                    try FileManager.default.removeItem(at: destination)
+                }
+                try FileManager.default.copyItem(at: self.url, to: destination)
+            } catch {
+                NSAlert(error: error).beginSheetModal(for: self.window!)
+            }
+        }
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        player?.pause()
+        try? FileManager.default.removeItem(at: url)
+        onClose(self)
+    }
+}
+
+private enum ScreenRecordingError: LocalizedError {
+    case invalidDisplay
+    case invalidRegion
+    case cannotCaptureFrame
+    case cannotCreatePixelBuffer
+    case writerStartFailed(String)
+    case writerFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidDisplay:
+            return L10n.pluginScreenRecordingInvalidDisplay
+        case .invalidRegion:
+            return L10n.pluginScreenRecordingInvalidRegion
+        case .cannotCaptureFrame:
+            return L10n.pluginScreenRecordingCaptureFailed
+        case .cannotCreatePixelBuffer:
+            return L10n.pluginScreenRecordingEncodeFailed
+        case .writerStartFailed(let message), .writerFailed(let message):
+            return message
+        }
+    }
+}
+
+private final class ScreenRecordingController {
+    private let displayID: CGDirectDisplayID
+    private let screenFrame: NSRect
+    private let screenSize: CGSize
+    private let rect: NSRect
+    private let outputURL: URL
+    private let options: ScreenRecordingOptions
+    private let framesPerSecond: Int32 = 15
+    private let completion: (Result<URL, Error>) -> Void
+    private let queue = DispatchQueue(label: "com.klok.screen-recording")
+
+    private var writer: AVAssetWriter?
+    private var input: AVAssetWriterInput?
+    private var adaptor: AVAssetWriterInputPixelBufferAdaptor?
+    private var gifFrames: [CGImage] = []
+    private var timer: DispatchSourceTimer?
+    private var startDate: Date?
+    private var didFinish = false
+
+    init(
+        screen: NSScreen,
+        rect: NSRect,
+        outputURL: URL,
+        options: ScreenRecordingOptions,
+        completion: @escaping (Result<URL, Error>) -> Void
+    ) throws {
+        guard let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else {
+            throw ScreenRecordingError.invalidDisplay
+        }
+        guard rect.width >= 8, rect.height >= 8 else {
+            throw ScreenRecordingError.invalidRegion
+        }
+        guard let firstFrame = Self.capture(displayID: id, screenFrame: screen.frame, rect: rect, includeMouse: options.includeMouse) else {
+            throw ScreenRecordingError.cannotCaptureFrame
+        }
+
+        self.displayID = id
+        self.screenFrame = screen.frame
+        self.screenSize = screen.frame.size
+        self.rect = rect
+        self.outputURL = outputURL
+        self.options = options
+        self.completion = completion
+
+        if FileManager.default.fileExists(atPath: outputURL.path) {
+            try FileManager.default.removeItem(at: outputURL)
+        }
+
+        if options.format == .mp4 {
+            let writer = try AVAssetWriter(outputURL: outputURL, fileType: options.fileType)
+            let settings: [String: Any] = [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: firstFrame.width,
+                AVVideoHeightKey: firstFrame.height,
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey: max(1_500_000, firstFrame.width * firstFrame.height * 4)
+                ]
+            ]
+            let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+            input.expectsMediaDataInRealTime = true
+
+            let attributes: [String: Any] = [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
+                kCVPixelBufferWidthKey as String: firstFrame.width,
+                kCVPixelBufferHeightKey as String: firstFrame.height,
+                kCVPixelBufferCGImageCompatibilityKey as String: true,
+                kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
+            ]
+            let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: attributes)
+
+            guard writer.canAdd(input) else {
+                throw ScreenRecordingError.writerStartFailed(L10n.pluginScreenRecordingEncodeFailed)
+            }
+            writer.add(input)
+            self.writer = writer
+            self.input = input
+            self.adaptor = adaptor
+        }
+    }
+
+    func start() throws {
+        try queue.sync {
+            if options.format == .mp4 {
+                guard let writer else {
+                    throw ScreenRecordingError.writerStartFailed(L10n.pluginScreenRecordingEncodeFailed)
+                }
+                guard writer.startWriting() else {
+                    throw ScreenRecordingError.writerStartFailed(writer.error?.localizedDescription ?? L10n.pluginScreenRecordingEncodeFailed)
+                }
+                writer.startSession(atSourceTime: .zero)
+            }
+            startDate = Date()
+            appendFrame(at: .zero)
+
+            let interval = DispatchTimeInterval.milliseconds(Int(1_000 / framesPerSecond))
+            let timer = DispatchSource.makeTimerSource(queue: queue)
+            timer.schedule(deadline: .now() + interval, repeating: interval, leeway: .milliseconds(8))
+            timer.setEventHandler { [weak self] in
+                self?.appendCurrentFrame()
+            }
+            self.timer = timer
+            timer.resume()
+        }
+    }
+
+    func stop() {
+        queue.async { [weak self] in
+            self?.finish(nil)
+        }
+    }
+
+    private func appendCurrentFrame() {
+        guard let startDate else { return }
+        let elapsed = Date().timeIntervalSince(startDate)
+        appendFrame(at: CMTime(seconds: elapsed, preferredTimescale: 600))
+    }
+
+    private func appendFrame(at presentationTime: CMTime) {
+        guard let image = Self.capture(displayID: displayID, screenFrame: screenFrame, rect: rect, includeMouse: options.includeMouse) else {
+            finish(ScreenRecordingError.cannotCaptureFrame)
+            return
+        }
+
+        if options.format == .gif {
+            gifFrames.append(image)
+            return
+        }
+
+        guard let input, let adaptor, input.isReadyForMoreMediaData else { return }
+        guard let pixelBuffer = Self.makePixelBuffer(from: image) else {
+            finish(ScreenRecordingError.cannotCreatePixelBuffer)
+            return
+        }
+        guard adaptor.append(pixelBuffer, withPresentationTime: presentationTime) else {
+            finish(ScreenRecordingError.writerFailed(writer?.error?.localizedDescription ?? L10n.pluginScreenRecordingEncodeFailed))
+            return
+        }
+    }
+
+    private func finish(_ error: Error?) {
+        guard !didFinish else { return }
+        didFinish = true
+        timer?.cancel()
+        timer = nil
+
+        if let error {
+            writer?.cancelWriting()
+            completion(.failure(error))
+            return
+        }
+
+        if options.format == .gif {
+            do {
+                try writeGIF()
+                completion(.success(outputURL))
+            } catch {
+                completion(.failure(error))
+            }
+            return
+        }
+
+        guard let writer, let input else {
+            completion(.failure(ScreenRecordingError.writerFailed(L10n.pluginScreenRecordingEncodeFailed)))
+            return
+        }
+        input.markAsFinished()
+        writer.finishWriting { [outputURL, completion] in
+            if writer.status == .completed {
+                completion(.success(outputURL))
+            } else {
+                completion(.failure(ScreenRecordingError.writerFailed(writer.error?.localizedDescription ?? L10n.pluginScreenRecordingEncodeFailed)))
+            }
+        }
+    }
+
+    private func writeGIF() throws {
+        guard !gifFrames.isEmpty,
+              let destination = CGImageDestinationCreateWithURL(outputURL as CFURL, UTType.gif.identifier as CFString, gifFrames.count, nil)
+        else {
+            throw ScreenRecordingError.writerFailed(L10n.pluginScreenRecordingEncodeFailed)
+        }
+
+        CGImageDestinationSetProperties(destination, [
+            kCGImagePropertyGIFDictionary as String: [
+                kCGImagePropertyGIFLoopCount as String: 0
+            ]
+        ] as CFDictionary)
+
+        let frameDelay = 1.0 / Double(framesPerSecond)
+        let frameProperties = [
+            kCGImagePropertyGIFDictionary as String: [
+                kCGImagePropertyGIFDelayTime as String: frameDelay
+            ]
+        ] as CFDictionary
+
+        for frame in gifFrames {
+            CGImageDestinationAddImage(destination, frame, frameProperties)
+        }
+        guard CGImageDestinationFinalize(destination) else {
+            throw ScreenRecordingError.writerFailed(L10n.pluginScreenRecordingEncodeFailed)
+        }
+        gifFrames.removeAll()
+    }
+
+    private static func capture(displayID: CGDirectDisplayID, screenFrame: NSRect, rect: NSRect, includeMouse: Bool) -> CGImage? {
+        guard let image = CGDisplayCreateImage(displayID) else { return nil }
+        let scaleX = CGFloat(image.width) / screenFrame.width
+        let scaleY = CGFloat(image.height) / screenFrame.height
+        var cropRect = CGRect(
+            x: rect.minX * scaleX,
+            y: (screenFrame.height - rect.maxY) * scaleY,
+            width: rect.width * scaleX,
+            height: rect.height * scaleY
+        ).integral
+
+        cropRect.size.width = CGFloat(max(2, Int(cropRect.width) & ~1))
+        cropRect.size.height = CGFloat(max(2, Int(cropRect.height) & ~1))
+        cropRect = cropRect.intersection(CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        guard cropRect.width >= 2, cropRect.height >= 2 else { return nil }
+        guard let cropped = image.cropping(to: cropRect) else { return nil }
+        guard includeMouse else { return cropped }
+        return drawCursor(on: cropped, screenFrame: screenFrame, selection: rect, scaleX: scaleX, scaleY: scaleY)
+    }
+
+    private static func drawCursor(on image: CGImage, screenFrame: NSRect, selection: NSRect, scaleX: CGFloat, scaleY: CGFloat) -> CGImage? {
+        let mouse = NSEvent.mouseLocation
+        let local = NSPoint(x: mouse.x - screenFrame.minX, y: mouse.y - screenFrame.minY)
+        guard selection.contains(local) else { return image }
+
+        guard let cursorCG = NSCursor.current.image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return image
+        }
+        let cursorSize = NSCursor.current.image.size
+        let hotSpot = NSCursor.current.hotSpot
+        let cursorX = (local.x - selection.minX - hotSpot.x) * scaleX
+        let cursorY = (selection.maxY - local.y - (cursorSize.height - hotSpot.y)) * scaleY
+        let cursorRect = CGRect(
+            x: cursorX,
+            y: cursorY,
+            width: cursorSize.width * scaleX,
+            height: cursorSize.height * scaleY
+        )
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil,
+            width: image.width,
+            height: image.height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
+        ) else {
+            return image
+        }
+
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        context.draw(cursorCG, in: cursorRect)
+        return context.makeImage() ?? image
+    }
+
+    private static func makePixelBuffer(from image: CGImage) -> CVPixelBuffer? {
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            image.width,
+            image.height,
+            kCVPixelFormatType_32ARGB,
+            [
+                kCVPixelBufferCGImageCompatibilityKey: true,
+                kCVPixelBufferCGBitmapContextCompatibilityKey: true
+            ] as CFDictionary,
+            &pixelBuffer
+        )
+        guard status == kCVReturnSuccess, let pixelBuffer else { return nil }
+
+        CVPixelBufferLockBaseAddress(pixelBuffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+
+        guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else { return nil }
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: baseAddress,
+            width: image.width,
+            height: image.height,
+            bitsPerComponent: 8,
+            bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
+        ) else {
+            return nil
+        }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return pixelBuffer
+    }
 }
 
 private final class ScreenshotOverlayWindow: NSPanel {
@@ -544,7 +1574,7 @@ private enum ScreenshotAnnotation {
     case arrow(NSPoint, NSPoint, NSColor)
     case brush([NSPoint], NSColor)
     case text(String, NSPoint, NSColor)
-    case mosaic(NSRect)
+    case mosaic([NSPoint])
 }
 
 private extension ScreenshotAnnotation {
@@ -564,8 +1594,8 @@ private extension ScreenshotAnnotation {
             return .brush(points.map(offset), color)
         case .text(let text, let point, let color):
             return .text(text, offset(point), color)
-        case .mosaic(let rect):
-            return .mosaic(rect.offsetBy(dx: dx, dy: dy))
+        case .mosaic(let points):
+            return .mosaic(points.map(offset))
         }
     }
 
@@ -588,7 +1618,7 @@ private extension ScreenshotAnnotation {
 
     var bounds: NSRect {
         switch self {
-        case .rectangle(let rect, _), .ellipse(let rect, _), .mosaic(let rect):
+        case .rectangle(let rect, _), .ellipse(let rect, _):
             return rect
         case .arrow(let start, let end, _):
             return NSRect(x: min(start.x, end.x), y: min(start.y, end.y), width: abs(end.x - start.x), height: abs(end.y - start.y)).insetBy(dx: -20, dy: -20)
@@ -599,14 +1629,29 @@ private extension ScreenshotAnnotation {
             }.insetBy(dx: -20, dy: -20)
         case .text(_, let point, _):
             return NSRect(x: point.x, y: point.y, width: 240, height: 40)
+        case .mosaic(let points):
+            guard let first = points.first else { return .zero }
+            return points.reduce(NSRect(origin: first, size: .zero)) { partial, point in
+                partial.union(NSRect(origin: point, size: .zero))
+            }.insetBy(dx: ScreenshotOverlayView.mosaicBrushRadius, dy: ScreenshotOverlayView.mosaicBrushRadius)
         }
     }
 }
 
 private final class ScreenshotOverlayView: NSView {
+    fileprivate static let mosaicBrushRadius: CGFloat = 14
+    private static let mosaicSampleStep: CGFloat = 8
+
     var onCopy: ((NSRect) -> Void)?
     var onSave: ((NSRect) -> Void)?
+    var onRecord: ((NSRect) -> Void)? {
+        didSet {
+            recordButton?.isHidden = onRecord == nil
+        }
+    }
     var onCancel: (() -> Void)?
+
+    var screen: NSScreen { snapshot.screen }
 
     private enum DragMode {
         case selection
@@ -630,8 +1675,11 @@ private final class ScreenshotOverlayView: NSView {
     private let snapshot: ScreenSnapshot
     private var selection: NSRect?
     private var selectionAtDragStart: NSRect?
+    private var hoverSelection: NSRect?
+    private var pendingWindowSelection: NSRect?
     private var dragStart: NSPoint?
     private var dragMode: DragMode?
+    private var didDragBeyondClick = false
     private var activeTool: ScreenshotTool = .select
     private var activeColor: NSColor = .systemRed
     private var annotations: [ScreenshotAnnotation] = []
@@ -639,6 +1687,7 @@ private final class ScreenshotOverlayView: NSView {
     private var selectedAnnotationIndex: Int?
     private var toolButtons: [ScreenshotTool: NSButton] = [:]
     private var colorButtons: [ColorButton] = []
+    private var recordButton: NSButton?
     private let toolbar = ScreenshotToolbarView()
     private let colorBar = ScreenshotToolbarView()
     private var activeTextField: NSTextField?
@@ -659,6 +1708,17 @@ private final class ScreenshotOverlayView: NSView {
         window?.makeFirstResponder(self)
     }
 
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach { removeTrackingArea($0) }
+        addTrackingArea(NSTrackingArea(
+            rect: bounds,
+            options: [.mouseMoved, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        ))
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         if !toolbar.isHidden, toolbar.frame.contains(point) {
             return self
@@ -675,6 +1735,8 @@ private final class ScreenshotOverlayView: NSView {
             copySelection()
         case 1 where event.modifierFlags.contains(.command):
             saveSelection()
+        case 15 where event.modifierFlags.contains(.command):
+            recordSelection()
         case 53:
             onCancel?()
         default:
@@ -699,10 +1761,21 @@ private final class ScreenshotOverlayView: NSView {
         }
     }
 
+    override func mouseMoved(with event: NSEvent) {
+        guard dragStart == nil, selection == nil else { return }
+        let point = event.locationInWindow
+        let next = isPointInToolbar(point) ? nil : windowCandidate(at: point)?.rect
+        guard next != hoverSelection else { return }
+        hoverSelection = next
+        needsDisplay = true
+    }
+
     override func mouseDown(with event: NSEvent) {
         let point = event.locationInWindow
         if handleToolbarClick(at: point) { return }
         commitActiveText()
+        didDragBeyondClick = false
+        pendingWindowSelection = nil
         if let selection, selection.contains(point) {
             if activeTool == .select {
                 if let handle = handle(at: point, in: selection) {
@@ -740,7 +1813,8 @@ private final class ScreenshotOverlayView: NSView {
             dragMode = .selection
             dragStart = point
             selectionAtDragStart = nil
-            selection = NSRect(origin: point, size: .zero)
+            pendingWindowSelection = hoverSelection
+            selection = pendingWindowSelection == nil ? NSRect(origin: point, size: .zero) : nil
             annotations.removeAll()
             previewAnnotation = nil
             selectedAnnotationIndex = nil
@@ -757,7 +1831,12 @@ private final class ScreenshotOverlayView: NSView {
         let current = event.locationInWindow
         switch dragMode {
         case .selection:
-            selection = normalizedRect(from: start, to: current)
+            if didDragBeyondClick || distance(from: start, to: current) > 4 {
+                didDragBeyondClick = true
+                hoverSelection = nil
+                pendingWindowSelection = nil
+                selection = normalizedRect(from: start, to: current)
+            }
         case .moveSelection:
             guard let original = selectionAtDragStart else { return }
             let moved = movedRect(original, byX: current.x - start.x, y: current.y - start.y)
@@ -785,6 +1864,13 @@ private final class ScreenshotOverlayView: NSView {
                 } else {
                     previewAnnotation = .brush([start, clipped], activeColor)
                 }
+            } else if activeTool == .mosaic {
+                if case .mosaic(var points) = previewAnnotation {
+                    points.append(clipped)
+                    previewAnnotation = .mosaic(points)
+                } else {
+                    previewAnnotation = .mosaic([start, clipped])
+                }
             } else {
                 previewAnnotation = annotation(for: activeTool, start: start, current: clipped)
             }
@@ -798,17 +1884,22 @@ private final class ScreenshotOverlayView: NSView {
             dragStart = nil
             dragMode = nil
             selectionAtDragStart = nil
+            pendingWindowSelection = nil
+            didDragBeyondClick = false
         }
 
         guard let start = dragStart, let dragMode else { return }
         switch dragMode {
         case .selection:
-            let rect = normalizedRect(from: start, to: event.locationInWindow)
+            let rect = didDragBeyondClick
+                ? normalizedRect(from: start, to: event.locationInWindow)
+                : (pendingWindowSelection ?? normalizedRect(from: start, to: event.locationInWindow))
             if rect.width < 6 || rect.height < 6 {
                 selection = nil
                 toolbar.isHidden = true
             } else {
                 selection = rect
+                hoverSelection = nil
                 positionToolbar(for: rect)
             }
         case .moveSelection, .moveAnnotation, .resizeSelection:
@@ -832,7 +1923,7 @@ private final class ScreenshotOverlayView: NSView {
         NSColor.black.withAlphaComponent(0.45).setFill()
         bounds.fill()
 
-        guard let rect = selection else { return }
+        guard let rect = selection ?? hoverSelection else { return }
         context.saveGState()
         context.clip(to: rect)
         drawSnapshot()
@@ -850,7 +1941,9 @@ private final class ScreenshotOverlayView: NSView {
         border.lineWidth = 2
         border.stroke()
 
-        drawHandles(for: rect)
+        if selection != nil {
+            drawHandles(for: rect)
+        }
         drawSizeBadge(for: rect)
     }
 
@@ -893,7 +1986,7 @@ private final class ScreenshotOverlayView: NSView {
             (.rectangle, L10n.pluginScreenshotRect, "rectangle"),
             (.ellipse, L10n.pluginScreenshotEllipse, "circle"),
             (.arrow, L10n.pluginScreenshotArrow, "arrow.up.right"),
-            (.brush, L10n.pluginScreenshotBrush, "paintbrush"),
+            (.brush, L10n.pluginScreenshotBrush, "pencil"),
             (.mosaic, L10n.pluginScreenshotMosaic, "checkerboard.rectangle"),
             (.text, L10n.pluginScreenshotText, "textformat")
         ]
@@ -911,6 +2004,14 @@ private final class ScreenshotOverlayView: NSView {
         let saveButton = toolbarButton(title: L10n.pluginScreenshotSave, symbolName: "square.and.arrow.down", action: #selector(saveSelection))
         saveButton.frame = NSRect(x: x, y: 10, width: 38, height: 38)
         toolbar.addSubview(saveButton)
+        x += 54
+
+        let recordButton = toolbarButton(title: L10n.pluginScreenRecordingStart, symbolName: "record.circle", action: #selector(recordSelection))
+        recordButton.contentTintColor = .systemRed
+        recordButton.isHidden = true
+        recordButton.frame = NSRect(x: x, y: 10, width: 38, height: 38)
+        toolbar.addSubview(recordButton)
+        self.recordButton = recordButton
         x += 54
 
         let separator = NSBox(frame: NSRect(x: x, y: 13, width: 1, height: 32))
@@ -1034,6 +2135,11 @@ private final class ScreenshotOverlayView: NSView {
                 if button.action == #selector(saveSelection) {
                     button.frame = NSRect(x: x, y: buttonY, width: 38, height: 38)
                     x += 54
+                } else if button.action == #selector(recordSelection) {
+                    button.frame = NSRect(x: x, y: buttonY, width: 38, height: 38)
+                    if !button.isHidden {
+                        x += 54
+                    }
                 }
             } else if let separator = subview as? NSBox {
                 separator.frame = NSRect(x: x, y: buttonY + 3, width: 1, height: 32)
@@ -1052,7 +2158,7 @@ private final class ScreenshotOverlayView: NSView {
     private var toolbarWidth: CGFloat {
         let leftPadding: CGFloat = 16
         let toolCount = CGFloat(6)
-        let commandCount = CGFloat(4)
+        let commandCount = CGFloat(onRecord == nil ? 4 : 5)
         let buttonStep: CGFloat = 54
         let separatorWidth: CGFloat = 18
         return leftPadding + ((toolCount + commandCount) * buttonStep) + separatorWidth
@@ -1084,6 +2190,14 @@ private final class ScreenshotOverlayView: NSView {
             }
         }
         return nil
+    }
+
+    private func windowCandidate(at point: NSPoint) -> WindowCandidate? {
+        snapshot.windowCandidates.first { $0.rect.contains(point) }
+    }
+
+    private func distance(from start: NSPoint, to end: NSPoint) -> CGFloat {
+        hypot(end.x - start.x, end.y - start.y)
     }
 
     private func normalizedRect(from start: NSPoint, to end: NSPoint) -> NSRect {
@@ -1186,7 +2300,7 @@ private final class ScreenshotOverlayView: NSView {
         case .brush:
             return .brush([start, current], activeColor)
         case .mosaic:
-            return .mosaic(normalizedRect(from: start, to: current))
+            return .mosaic([start, current])
         }
     }
 
@@ -1203,8 +2317,8 @@ private final class ScreenshotOverlayView: NSView {
                 drawBrush(points, color: color)
             case .text(let text, let point, let color):
                 drawText(text, at: point, color: color)
-            case .mosaic(let rect):
-                drawMosaic(rect)
+            case .mosaic(let points):
+                drawMosaic(points)
             }
         }
     }
@@ -1276,7 +2390,21 @@ private final class ScreenshotOverlayView: NSView {
         (text as NSString).draw(at: point, withAttributes: attrs)
     }
 
-    private func drawMosaic(_ rect: NSRect) {
+    private func drawMosaic(_ points: [NSPoint]) {
+        guard !points.isEmpty else { return }
+        let sampledPoints = sampleStrokePoints(points, spacing: Self.mosaicSampleStep)
+        for point in sampledPoints {
+            let rect = NSRect(
+                x: point.x - Self.mosaicBrushRadius,
+                y: point.y - Self.mosaicBrushRadius,
+                width: Self.mosaicBrushRadius * 2,
+                height: Self.mosaicBrushRadius * 2
+            ).intersection(bounds)
+            drawMosaicBlock(rect)
+        }
+    }
+
+    private func drawMosaicBlock(_ rect: NSRect) {
         guard rect.width >= 8, rect.height >= 8 else { return }
         let scaleX = CGFloat(snapshot.image.width) / bounds.width
         let scaleY = CGFloat(snapshot.image.height) / bounds.height
@@ -1296,6 +2424,34 @@ private final class ScreenshotOverlayView: NSView {
         NSGraphicsContext.current?.imageInterpolation = .none
         tiny.draw(in: rect, from: NSRect(origin: .zero, size: tinySize), operation: .sourceOver, fraction: 1)
         NSGraphicsContext.current?.imageInterpolation = .default
+    }
+
+    private func sampleStrokePoints(_ points: [NSPoint], spacing: CGFloat) -> [NSPoint] {
+        guard let first = points.first else { return [] }
+        guard points.count > 1 else { return [first] }
+
+        var sampled = [first]
+        var previous = first
+        var carry: CGFloat = 0
+
+        for point in points.dropFirst() {
+            let dx = point.x - previous.x
+            let dy = point.y - previous.y
+            let distance = hypot(dx, dy)
+            guard distance > 0 else { continue }
+
+            var traveled = spacing - carry
+            while traveled <= distance {
+                let t = traveled / distance
+                sampled.append(NSPoint(x: previous.x + dx * t, y: previous.y + dy * t))
+                traveled += spacing
+            }
+
+            carry = distance - max(0, traveled - spacing)
+            previous = point
+        }
+
+        return sampled
     }
 
     private func drawHandles(for rect: NSRect) {
@@ -1343,8 +2499,8 @@ private final class ScreenshotOverlayView: NSView {
         switch annotation {
         case .rectangle(let rect, _), .ellipse(let rect, _):
             return rect.width < 4 && rect.height < 4
-        case .mosaic(let rect):
-            return rect.width < 4 || rect.height < 4
+        case .mosaic(let points):
+            return points.count < 2
         case .arrow(let start, let end, _):
             return hypot(end.x - start.x, end.y - start.y) < 6
         case .brush(let points, _):
@@ -1444,7 +2600,64 @@ private final class ScreenshotOverlayView: NSView {
     }
 
     private func annotationIndex(at point: NSPoint) -> Int? {
-        annotations.indices.reversed().first { annotations[$0].bounds.insetBy(dx: -6, dy: -6).contains(point) }
+        annotations.indices.reversed().first { annotationContainsPoint(annotations[$0], point) }
+    }
+
+    private func annotationContainsPoint(_ annotation: ScreenshotAnnotation, _ point: NSPoint) -> Bool {
+        let tolerance: CGFloat = 8
+        switch annotation {
+        case .rectangle(let rect, _):
+            if rect.width < 2 || rect.height < 2 {
+                return distance(from: point, toSegmentFrom: rect.origin, to: NSPoint(x: rect.maxX, y: rect.maxY)) <= tolerance
+            }
+            return rect.insetBy(dx: -tolerance, dy: -tolerance).contains(point)
+                && !rect.insetBy(dx: tolerance, dy: tolerance).contains(point)
+        case .ellipse(let rect, _):
+            guard rect.width > 0, rect.height > 0 else { return false }
+            guard rect.insetBy(dx: -tolerance, dy: -tolerance).contains(point) else { return false }
+            let rx = rect.width / 2
+            let ry = rect.height / 2
+            guard rx > 0, ry > 0 else { return false }
+            let dx = (point.x - rect.midX) / rx
+            let dy = (point.y - rect.midY) / ry
+            let normalizedDistance = sqrt(dx * dx + dy * dy)
+            return abs(normalizedDistance - 1) * min(rx, ry) <= tolerance
+        case .arrow(let start, let end, _):
+            return distance(from: point, toSegmentFrom: start, to: end) <= tolerance
+        case .brush(let points, _):
+            return stroke(points, contains: point, tolerance: tolerance)
+        case .text:
+            return annotation.bounds.insetBy(dx: -tolerance, dy: -tolerance).contains(point)
+        case .mosaic(let points):
+            return stroke(points, contains: point, tolerance: Self.mosaicBrushRadius)
+        }
+    }
+
+    private func stroke(_ points: [NSPoint], contains point: NSPoint, tolerance: CGFloat) -> Bool {
+        guard let first = points.first else { return false }
+        guard points.count > 1 else { return hypot(point.x - first.x, point.y - first.y) <= tolerance }
+
+        var previous = first
+        for current in points.dropFirst() {
+            if distance(from: point, toSegmentFrom: previous, to: current) <= tolerance {
+                return true
+            }
+            previous = current
+        }
+        return false
+    }
+
+    private func distance(from point: NSPoint, toSegmentFrom start: NSPoint, to end: NSPoint) -> CGFloat {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let lengthSquared = dx * dx + dy * dy
+        guard lengthSquared > 0 else {
+            return hypot(point.x - start.x, point.y - start.y)
+        }
+
+        let t = max(0, min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared))
+        let projected = NSPoint(x: start.x + t * dx, y: start.y + t * dy)
+        return hypot(point.x - projected.x, point.y - projected.y)
     }
 
     private func drawSelectionOutline(for rect: NSRect) {
@@ -1474,6 +2687,12 @@ private final class ScreenshotOverlayView: NSView {
         commitActiveText()
         guard let selection else { return }
         onSave?(selection)
+    }
+
+    @objc private func recordSelection() {
+        commitActiveText()
+        guard let selection, onRecord != nil else { return }
+        onRecord?(selection)
     }
 
     @objc private func cancel() {
